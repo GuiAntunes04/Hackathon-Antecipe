@@ -11,6 +11,8 @@ import {
   formatValorNominalNota,
 } from "../lib/nota-valores.js?v=20261024d";
 
+const NOTAS_MOBILE_MQ = window.matchMedia("(max-width: 767.98px)");
+
 /** @param {object} nota */
 function celulaStatus(nota) {
   const lower = String(nota.status ?? "").toLowerCase();
@@ -89,21 +91,54 @@ function theadHtml() {
   </thead>`;
 }
 
+/** @param {object} nota */
+function htmlDetalheNota(nota) {
+  const recusada = String(nota.status ?? "").toLowerCase() === "recusada";
+  const motivo = recusada
+    ? `<div class="nota-detail__item">
+        <dt class="nota-detail__label">${escapeHtml(t("banner.rejectHint"))}</dt>
+        <dd class="nota-detail__value">${escapeHtml(nota.motivo ? String(nota.motivo) : t("banner.noReason"))}</dd>
+      </div>`
+    : "";
+
+  return `
+    <dl class="nota-detail">
+      <div class="nota-detail__item">
+        <dt class="nota-detail__label">${escapeHtml(t("table.due"))}</dt>
+        <dd class="nota-detail__value">${escapeHtml(nota.data_vencimento ?? "—")}</dd>
+      </div>
+      <div class="nota-detail__item">
+        <dt class="nota-detail__label">${escapeHtml(t("table.value"))}</dt>
+        <dd class="nota-detail__value">${escapeHtml(formatValorNominalNota(nota))}</dd>
+      </div>
+      <div class="nota-detail__item">
+        <dt class="nota-detail__label">${escapeHtml(t("table.simulatedNet"))}</dt>
+        <dd class="nota-detail__value nota-detail__value--liquido">${escapeHtml(formatValorLiquidoSimulado(nota))}</dd>
+      </div>
+      ${motivo}
+    </dl>`;
+}
+
 /** @param {Array<object>} lista */
 function htmlLinhas(lista) {
   return (lista || [])
     .map((nota, index) => {
       const doc = escapeHtml(nota.nu_documento ?? nota.linha ?? "");
       const recusada = String(nota.status ?? "").toLowerCase() === "recusada";
-      const aria = recusada
-        ? t("table.ariaReject", { doc })
-        : t("table.ariaReceive", { doc });
-      return `<tr class="nota-row hover:bg-slate-50" data-nota-index="${index}" tabindex="0" role="button" aria-label="${aria}">
+      const aria = NOTAS_MOBILE_MQ.matches
+        ? t("table.ariaDetails", { doc })
+        : recusada
+          ? t("table.ariaReject", { doc })
+          : t("table.ariaReceive", { doc });
+      return `<tr class="nota-row hover:bg-slate-50" data-nota-index="${index}" tabindex="0" role="button" aria-expanded="false" aria-label="${aria}">
         <td class="notes-table__cell notes-table__cell--nota">${doc}</td>
         <td class="notes-table__cell notes-table__cell--sacado">${escapeHtml(nota.nome_sacado ?? "—")}</td>
         <td class="notes-table__cell notes-table__cell--vencimento">${escapeHtml(nota.data_vencimento ?? "—")}</td>
         <td class="notes-table__cell notes-table__cell--valor">${escapeHtml(formatValorNominalNota(nota))}</td>
         <td class="notes-table__cell notes-table__cell--status">${celulaStatus(nota)}</td>
+      </tr>
+      <tr class="nota-row-detail" data-nota-index="${index}" hidden>
+        <td class="notes-table__detail" colspan="5">${htmlDetalheNota(nota)}</td>
       </tr>`;
     })
     .join("");
@@ -120,7 +155,22 @@ function filtrosUi() {
 /**
  * @param {string} filtroAtual
  * @param {boolean} carregando
- * @param {{ buscaNota?: string, dataInicio?: string, dataFim?: string }} [consulta]
+ * @param {string} yyyyMm
+ */
+function rotuloMes(yyyyMm) {
+  const [ano, mes] = String(yyyyMm).split("-").map(Number);
+  if (!ano || !mes) return yyyyMm;
+  const nome = new Intl.DateTimeFormat(getLocale(), {
+    month: "short",
+    year: "numeric",
+  }).format(new Date(ano, mes - 1, 1));
+  return nome.charAt(0).toUpperCase() + nome.slice(1);
+}
+
+/**
+ * @param {string} filtroAtual
+ * @param {boolean} carregando
+ * @param {{ buscaNota?: string, mes?: string, meses?: string[] }} [consulta]
  */
 function htmlBarraFiltros(filtroAtual, carregando, consulta = {}) {
   const ativo = filtroAtual || FILTRO_TODAS;
@@ -132,25 +182,42 @@ function htmlBarraFiltros(filtroAtual, carregando, consulta = {}) {
     .join("");
 
   const busca = escapeHtml(consulta.buscaNota ?? "");
-  const inicio = escapeHtml(consulta.dataInicio ?? "");
-  const fim = escapeHtml(consulta.dataFim ?? "");
+  const mesAtual = String(consulta.mes ?? "");
+  const meses = [...(consulta.meses || [])];
+  if (mesAtual && !meses.includes(mesAtual)) meses.push(mesAtual);
+  meses.sort();
+  const opcoesMes = [
+    `<option value="" ${mesAtual ? "" : "selected"}>${escapeHtml(t("table.monthAll"))}</option>`,
+    ...meses.map(
+      (mes) =>
+        `<option value="${escapeHtml(mes)}" ${mes === mesAtual ? "selected" : ""}>${escapeHtml(rotuloMes(mes))}</option>`
+    ),
+  ].join("");
   const dis = carregando ? "disabled" : "";
 
   return `
     <div class="notes-toolbar">
       <div class="notes-toolbar__consulta" role="search" aria-label="${t("table.toolbarConsulta")}">
-        <label class="notes-search">
-          <span class="notes-search__label">${t("table.searchNote")}</span>
-          <input
-            type="search"
-            class="notes-search__input"
-            name="busca-nota"
-            value="${busca}"
-            placeholder="${t("table.searchPlaceholder")}"
-            autocomplete="off"
-            ${dis}
-          />
-        </label>
+        <div class="notes-toolbar__busca">
+          <label class="notes-search">
+            <span class="notes-search__label">${t("table.searchNote")}</span>
+            <input
+              type="search"
+              class="notes-search__input"
+              name="busca-nota"
+              value="${busca}"
+              placeholder="${t("table.searchPlaceholder")}"
+              autocomplete="off"
+              ${dis}
+            />
+          </label>
+          <label class="notes-month">
+            <span class="notes-month__label">${t("table.month")}</span>
+            <select class="notes-month__input" name="mes-vencimento" aria-label="${t("table.month")}" ${dis}>
+              ${opcoesMes}
+            </select>
+          </label>
+        </div>
         <label class="notes-filter-select">
           <span class="notes-filter-select__label">${t("table.filterStatusLabel")}</span>
           <select
@@ -162,16 +229,6 @@ function htmlBarraFiltros(filtroAtual, carregando, consulta = {}) {
             ${opcoesStatus}
           </select>
         </label>
-        <div class="notes-date-range">
-          <label class="notes-date-field">
-            <span class="notes-date-field__label">${t("table.dateStart")}</span>
-            <input type="date" class="notes-date-field__input" name="data-inicio" value="${inicio}" ${dis} />
-          </label>
-          <label class="notes-date-field">
-            <span class="notes-date-field__label">${t("table.dateEnd")}</span>
-            <input type="date" class="notes-date-field__input" name="data-fim" value="${fim}" ${dis} />
-          </label>
-        </div>
       </div>
     </div>
   `;
@@ -319,15 +376,24 @@ function alinharColunasTabela(container) {
     headWrap.style.paddingRight = `${gutter}px`;
   }
 
-  const larguraPx = `${larguraUtil}px`;
-  headTable.style.width = larguraPx;
-  bodyTable.style.width = larguraPx;
-
   const headCols = headTable.querySelectorAll("colgroup col");
   const bodyCols = bodyTable.querySelectorAll("colgroup col");
   limparLargurasColunasTabela(headCols, bodyCols);
 
-  const linhaCorpo = bodyTable.querySelector("tbody tr");
+  if (NOTAS_MOBILE_MQ.matches) {
+    headTable.style.width = "100%";
+    bodyTable.style.width = "100%";
+    container.dataset.notesTableColMode = "css";
+    headInner.scrollLeft = 0;
+    if (scroll instanceof HTMLElement) scroll.scrollLeft = 0;
+    return true;
+  }
+
+  const larguraPx = `${larguraUtil}px`;
+  headTable.style.width = larguraPx;
+  bodyTable.style.width = larguraPx;
+
+  const linhaCorpo = bodyTable.querySelector("tbody tr.nota-row");
   const linhaVazia = Boolean(linhaCorpo?.querySelector(".notes-table__empty"));
   const celulasCorpo = linhaCorpo?.querySelectorAll("td") ?? [];
   const usarCorpo =
@@ -378,7 +444,7 @@ function ajustarViewportScrollTabela(container, qtdLinhasNaPagina, tamanhoPagina
   const scroll = container.querySelector(".notes-table-scroll");
   if (!scroll) return;
 
-  const linha = scroll.querySelector("tbody tr:not(:has(.notes-table__empty))");
+  const linha = scroll.querySelector("tbody tr.nota-row");
   const viewportRows = Math.min(NOTAS_VISIVEIS_SEM_SCROLL, tamanhoPagina);
 
   let rowPx = 40;
@@ -433,12 +499,10 @@ const estadoTabela = new WeakMap();
  */
 function lerConsultaDoToolbar(container) {
   const busca = container.querySelector(".notes-search__input");
-  const inicio = container.querySelector('[name="data-inicio"]');
-  const fim = container.querySelector('[name="data-fim"]');
+  const mes = container.querySelector('[name="mes-vencimento"]');
   return {
     buscaNota: busca?.value ?? "",
-    dataInicio: inicio?.value ?? "",
-    dataFim: fim?.value ?? "",
+    mes: mes?.value ?? "",
   };
 }
 
@@ -452,8 +516,7 @@ function vincularConsultaToolbar(container, estado) {
   toolbar.dataset.boundConsulta = "1";
 
   const search = toolbar.querySelector(".notes-search__input");
-  const inicio = toolbar.querySelector('[name="data-inicio"]');
-  const fim = toolbar.querySelector('[name="data-fim"]');
+  const mes = toolbar.querySelector('[name="mes-vencimento"]');
 
   const emitir = () => {
     if (!estado.onConsultaChange) return;
@@ -465,8 +528,7 @@ function vincularConsultaToolbar(container, estado) {
     estado.searchTimer = setTimeout(emitir, 280);
   });
 
-  inicio?.addEventListener("change", emitir);
-  fim?.addEventListener("change", emitir);
+  mes?.addEventListener("change", emitir);
 }
 
 function vincularInteracoes(container) {
@@ -482,18 +544,58 @@ function vincularInteracoes(container) {
     tr.classList.add("nota-row--selected");
   }
 
+  function fecharDetalhes() {
+    container.querySelectorAll(".nota-row-detail").forEach((el) => {
+      el.hidden = true;
+    });
+    container.querySelectorAll(".nota-row--open").forEach((el) => {
+      el.classList.remove("nota-row--open");
+      el.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function alternarDetalheNota(tr) {
+    const detalhe = tr.nextElementSibling;
+    if (!(detalhe instanceof HTMLElement) || !detalhe.classList.contains("nota-row-detail")) return;
+    const vaiAbrir = detalhe.hidden;
+    fecharDetalhes();
+    if (!vaiAbrir) return;
+    detalhe.hidden = false;
+    tr.classList.add("nota-row--open");
+    tr.setAttribute("aria-expanded", "true");
+  }
+
   function aoEscolherNota(tr) {
     const estadoAtual = estadoTabela.get(container);
-    if (!estadoAtual?.lista || !banner) return;
+    if (!estadoAtual?.lista) return;
     const index = Number(tr.dataset.notaIndex);
     const nota = estadoAtual.lista[index];
     if (!nota) return;
+
+    if (NOTAS_MOBILE_MQ.matches) {
+      if (banner) {
+        banner.hidden = true;
+        banner.innerHTML = "";
+      }
+      alternarDetalheNota(tr);
+      return;
+    }
+
+    fecharDetalhes();
+    if (!banner) return;
     selecionarLinha(tr);
     mostrarBannerNota(banner, nota);
   }
 
   if (!container.dataset.boundRows) {
     container.dataset.boundRows = "1";
+    NOTAS_MOBILE_MQ.addEventListener("change", () => {
+      fecharDetalhes();
+      if (banner) {
+        banner.hidden = true;
+        banner.innerHTML = "";
+      }
+    });
     tbody.addEventListener("click", (e) => {
       const tr = e.target.closest("tr.nota-row");
       if (tr) aoEscolherNota(tr);
@@ -539,7 +641,7 @@ function vincularInteracoes(container) {
 
 /**
  * @param {HTMLElement} container
- * @param {{ notas?: Array<object>, paginacao?: object, filtroStatus?: string, buscaNota?: string, dataInicio?: string, dataFim?: string, carregando?: boolean, onPaginaChange?: (pagina: number) => void, onTamanhoPaginaChange?: (tamanho: number) => void, onFiltroStatusChange?: (filtro: string) => void, onConsultaChange?: (consulta: object) => void }} opts
+ * @param {{ notas?: Array<object>, paginacao?: object, filtroStatus?: string, buscaNota?: string, mes?: string, meses?: string[], carregando?: boolean, onPaginaChange?: (pagina: number) => void, onTamanhoPaginaChange?: (tamanho: number) => void, onFiltroStatusChange?: (filtro: string) => void, onConsultaChange?: (consulta: object) => void }} opts
  */
 export function renderNotesTable(container, opts) {
   const notas = opts?.notas ?? (Array.isArray(opts) ? opts : []);
@@ -603,8 +705,8 @@ export function renderNotesTable(container, opts) {
   if (filtroRoot) {
     filtroRoot.innerHTML = htmlBarraFiltros(filtroStatus, carregando, {
       buscaNota: opts?.buscaNota,
-      dataInicio: opts?.dataInicio,
-      dataFim: opts?.dataFim,
+      mes: opts?.mes,
+      meses: opts?.meses,
     });
     container.dataset.boundFiltro = "";
     const toolbar = filtroRoot.querySelector(".notes-toolbar");

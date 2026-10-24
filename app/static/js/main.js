@@ -8,7 +8,7 @@ import {
 } from "./cinematic-scroll.js";
 import { postValidar } from "./api/validacao.js";
 import { mountUploadPanel } from "./components/upload-panel.js";
-import { createNotesTableController } from "./components/notes-table-controller.js?v=20261024k";
+import { createNotesTableController } from "./components/notes-table-controller.js?v=20261024ac";
 import {
   renderDashboardResumo,
   resetDashboardSlide,
@@ -16,8 +16,9 @@ import {
 } from "./components/dashboard-resumo.js";
 import { mountLangSwitcher } from "./components/lang-switcher.js";
 import { applyDocumentLocale, onLocaleChange, t } from "./i18n.js";
-import { filtrarNotasPorSacado } from "./lib/notas-filtro.js";
+import { filtrarNotasPorSacado } from "./lib/notas-filtro.js?v=20261024y";
 import { showToast } from "./lib/toast.js";
+import { initPortalBgParallax } from "./portal-bg-parallax.js";
 
 const statusEl = document.getElementById("status");
 const portalHome = document.getElementById("portal-home");
@@ -33,6 +34,8 @@ const PORTAL_FADE_MS = window.matchMedia("(prefers-reduced-motion: reduce)").mat
   ? 0
   : 1040;
 
+const LANG_SWITCHER_MOBILE_MQ = window.matchMedia("(max-width: 767.98px)");
+
 /** @type {boolean} */
 let portalScreenTransitionLock = false;
 
@@ -44,6 +47,27 @@ function syncScreenA11y() {
   const onHome = document.body.classList.contains("portal-screen-home");
   portalHome?.setAttribute("aria-hidden", onHome ? "false" : "true");
   portalResults?.setAttribute("aria-hidden", onHome ? "true" : "false");
+}
+
+/** Mobile resultados: idioma no header sticky; home: canto fixo da viewport. */
+function posicionarLangSwitcher() {
+  if (!langSwitcherRoot) return;
+
+  const headerInner = document.querySelector(".portal-results-header__inner");
+  const onResults = document.body.classList.contains("portal-screen-results");
+  const mobile = LANG_SWITCHER_MOBILE_MQ.matches;
+
+  if (onResults && mobile && headerInner) {
+    headerInner.appendChild(langSwitcherRoot);
+    langSwitcherRoot.classList.add("portal-lang-switch-root--in-header");
+    return;
+  }
+
+  langSwitcherRoot.classList.remove("portal-lang-switch-root--in-header");
+  const main = document.querySelector(".cinematic-main");
+  if (main?.parentNode) {
+    main.parentNode.insertBefore(langSwitcherRoot, main);
+  }
 }
 
 /** @type {{ jobId: string | null, resumo: object | null, totalAReceber: number | null, notasCompletas: object[], sacadosFiltrados: string[], statusKind: string | null }} */
@@ -154,6 +178,7 @@ async function showHomeScreen() {
   setStatus("", "");
   dashboardRoot.innerHTML = "";
   resetResultsHeaderScroll();
+  posicionarLangSwitcher();
   portalScreenTransitionLock = false;
 }
 
@@ -170,6 +195,7 @@ async function showResultsScreen() {
   await waitPortalFade();
 
   portalScreenTransitionLock = false;
+  posicionarLangSwitcher();
   requestAnimationFrame(() => {
     resetResultsHeaderScroll();
     scrollToPortalAnchor(document.querySelector(".portal-results-header"));
@@ -325,6 +351,9 @@ function applyDocumentLocaleExtended() {
 
 applyDocumentLocaleExtended();
 if (langSwitcherRoot) mountLangSwitcher(langSwitcherRoot);
+posicionarLangSwitcher();
+LANG_SWITCHER_MOBILE_MQ.addEventListener("change", posicionarLangSwitcher);
+window.addEventListener("resize", posicionarLangSwitcher, { passive: true });
 
 btnNovoLote?.addEventListener("click", async () => {
   await showHomeScreen();
@@ -372,6 +401,7 @@ if (dashboardRoot) {
 
 syncScreenA11y();
 lockHomeScroll();
+initPortalBgParallax();
 initCinematicScroll().then(() => lockHomeScroll());
 
 mountUpload();

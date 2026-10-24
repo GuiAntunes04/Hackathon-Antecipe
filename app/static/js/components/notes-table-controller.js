@@ -3,8 +3,9 @@ import {
   fatiarNotasPagina,
   filtrarNotasConsultaTabela,
   infoPaginacaoLocal,
-} from "../lib/notas-filtro.js";
-import { renderNotesTable } from "./notes-table.js?v=20261024k";
+  listarMesesVencimento,
+} from "../lib/notas-filtro.js?v=20261024y";
+import { renderNotesTable } from "./notes-table.js?v=20261024ac";
 
 /**
  * Controlador da tabela de notas: filtros locais, paginação e render — sem re-render do dashboard.
@@ -19,8 +20,7 @@ export function createNotesTableController(container) {
     sacadosFiltrados: [],
     filtroStatus: FILTRO_TODAS,
     buscaNota: "",
-    dataInicio: "",
-    dataFim: "",
+    mes: "",
     tamanhoPagina: TAMANHO_PAGINA,
     pagina: 1,
     carregando: false,
@@ -52,11 +52,10 @@ export function createNotesTableController(container) {
     render();
   }
 
-  /** @param {{ buscaNota?: string, dataInicio?: string, dataFim?: string }} consulta */
+  /** @param {{ buscaNota?: string, mes?: string }} consulta */
   function alterarConsulta(consulta) {
     if (consulta.buscaNota != null) state.buscaNota = consulta.buscaNota;
-    if (consulta.dataInicio != null) state.dataInicio = consulta.dataInicio;
-    if (consulta.dataFim != null) state.dataFim = consulta.dataFim;
+    if (consulta.mes != null) state.mes = consulta.mes;
     state.pagina = 1;
     render();
   }
@@ -68,8 +67,7 @@ export function createNotesTableController(container) {
       sacadosFiltrados: state.sacadosFiltrados,
       filtroStatus: state.filtroStatus,
       buscaNota: state.buscaNota,
-      dataInicio: state.dataInicio,
-      dataFim: state.dataFim,
+      mes: state.mes,
     });
     const pag = infoPaginacaoLocal(filtradas.length, state.pagina, state.tamanhoPagina);
     state.pagina = pag.pagina;
@@ -85,8 +83,8 @@ export function createNotesTableController(container) {
       onTamanhoPaginaChange: alterarTamanhoPagina,
       onFiltroStatusChange: alterarFiltroStatus,
       buscaNota: state.buscaNota,
-      dataInicio: state.dataInicio,
-      dataFim: state.dataFim,
+      mes: state.mes,
+      meses: listarMesesVencimento(state.notasCompletas),
       onConsultaChange: alterarConsulta,
     });
 
@@ -104,8 +102,7 @@ export function createNotesTableController(container) {
       state.sacadosFiltrados = [];
       state.filtroStatus = FILTRO_TODAS;
       state.buscaNota = "";
-      state.dataInicio = "";
-      state.dataFim = "";
+      state.mes = "";
       state.tamanhoPagina = TAMANHO_PAGINA;
       state.pagina = 1;
       state.carregando = false;

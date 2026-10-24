@@ -65,8 +65,8 @@ function htmlListaSacadoCombobox(sacadosOpcoes) {
     </ul>`;
 }
 
-/** @param {number} index @param {string} rotulo @param {boolean} ativa */
-function htmlAbaDashboard(index, rotulo, ativa) {
+/** @param {number} index @param {string} rotulo @param {string} rotuloCompacto @param {boolean} ativa */
+function htmlAbaDashboard(index, rotulo, rotuloCompacto, ativa) {
   return `
     <button
       type="button"
@@ -77,8 +77,10 @@ function htmlAbaDashboard(index, rotulo, ativa) {
       aria-controls="dashboard-panel-${index}"
       tabindex="${ativa ? "0" : "-1"}"
       data-slide="${index}"
+      aria-label="${escapeHtml(rotulo)}"
     >
-      <span class="dashboard-tabs__label">${rotulo}</span>
+      <span class="dashboard-tabs__label dashboard-tabs__label--full">${escapeHtml(rotulo)}</span>
+      <span class="dashboard-tabs__label dashboard-tabs__label--compact" aria-hidden="true">${escapeHtml(rotuloCompacto)}</span>
     </button>`;
 }
 
@@ -110,12 +112,12 @@ function htmlBadgeSacadoFiltro(nome) {
 
 export function htmlBarraAbas(slideAtivo, sacadosFiltrados = [], sacadosOpcoes = []) {
   const tabs = [
-    t("dashboard.tabFinancial"),
-    t("dashboard.tabRejected"),
-    t("dashboard.tabNotes"),
+    [t("dashboard.tabFinancial"), t("dashboard.tabFinancialShort")],
+    [t("dashboard.tabRejected"), t("dashboard.tabRejectedShort")],
+    [t("dashboard.tabNotes"), t("dashboard.tabNotesShort")],
   ];
   const botoes = tabs
-    .map((rotulo, i) => htmlAbaDashboard(i, rotulo, i === slideAtivo))
+    .map(([rotulo, compacto], i) => htmlAbaDashboard(i, rotulo, compacto, i === slideAtivo))
     .join("");
   const aplicados = (sacadosFiltrados || [])
     .map((s) => String(s).trim())

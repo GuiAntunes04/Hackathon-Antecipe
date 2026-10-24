@@ -32,7 +32,7 @@ export function filtrarNotasPorStatus(notas, filtro) {
 
 /**
  * @param {object[]} notas
- * @param {{ sacadosFiltrados?: string[], filtroStatus?: string, buscaNota?: string, dataInicio?: string, dataFim?: string }} consulta
+ * @param {{ sacadosFiltrados?: string[], filtroStatus?: string, buscaNota?: string, dataInicio?: string, dataFim?: string, mes?: string }} consulta
  */
 export function filtrarNotasConsultaTabela(notas, consulta) {
   let out = filtrarNotasPorSacado(notas, consulta.sacadosFiltrados);
@@ -46,6 +46,10 @@ export function filtrarNotasConsultaTabela(notas, consulta) {
       return doc.includes(q);
     });
   }
+  const mes = String(consulta.mes ?? "").trim();
+  if (/^\d{4}-\d{2}$/.test(mes)) {
+    out = out.filter((n) => mesVencimentoNota(n) === mes);
+  }
   const inicio = parseIsoDate(consulta.dataInicio);
   const fim = parseIsoDate(consulta.dataFim);
   if (inicio || fim) {
@@ -58,6 +62,23 @@ export function filtrarNotasConsultaTabela(notas, consulta) {
     });
   }
   return out;
+}
+
+/** @param {object | null | undefined} nota @returns {string} `YYYY-MM` ou vazio */
+export function mesVencimentoNota(nota) {
+  const venc = parseDataVencimentoBR(nota?.data_vencimento);
+  if (!venc) return "";
+  return `${venc.getFullYear()}-${String(venc.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** @param {object[]} notas @returns {string[]} meses `YYYY-MM` em ordem */
+export function listarMesesVencimento(notas) {
+  const meses = new Set();
+  for (const nota of notas || []) {
+    const mes = mesVencimentoNota(nota);
+    if (mes) meses.add(mes);
+  }
+  return [...meses].sort();
 }
 
 /** @param {number} totalLinhas @param {number} pagina @param {number} tamanho */
