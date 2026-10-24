@@ -1,6 +1,7 @@
 """Testes do POST /validar com mock temporário."""
 
 from io import BytesIO
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -45,14 +46,20 @@ def test_get_validar_demo_sem_mock_retorna_404(monkeypatch) -> None:
     assert resposta.status_code == 404
 
 
-def test_post_validar_com_mock_retorna_200(monkeypatch) -> None:
+def test_post_validar_ignora_mock_e_usa_pipeline(monkeypatch) -> None:
+    """Upload sempre valida o CSV inteiro; mock só em GET / e /validar/demo."""
     monkeypatch.setenv("MOCK_VALIDACAO", "true")
+    fixture = (
+        Path(__file__).resolve().parent / "fixtures" / "notas_exemplo.csv"
+    ).read_bytes()
     with TestClient(app) as client:
         resposta = client.post(
             "/validar",
-            files={"arquivo": ("teste.csv", BytesIO(b"a;b\n"), "text/csv")},
+            files={"arquivo": ("notas_exemplo.csv", BytesIO(fixture), "text/csv")},
         )
     assert resposta.status_code == 200
     corpo = resposta.json()
-    assert len(corpo["notas"]) == 10
-    assert corpo["total_a_receber"] == resultado_simulado()["total_a_receber"]
+    assert corpo["job_id"]
+    assert corpo["resumo"]["total_linhas"] == 6
+    assert len(corpo["notas"]) == 6
+    assert corpo["paginacao"]["total_paginas"] == 1

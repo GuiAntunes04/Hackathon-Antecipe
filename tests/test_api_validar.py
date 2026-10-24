@@ -20,8 +20,11 @@ def test_post_validar_csv(monkeypatch) -> None:
             )
     assert resp.status_code == 200
     body = resp.json()
+    assert body["job_id"]
     assert body["resumo"]["total_linhas"] == 6
     assert "notas" in body
+    assert len(body["notas"]) == 6
+    assert body["paginacao"]["pagina"] == 1
     primeira = body["notas"][0]
     assert primeira.get("nome_sacado")
     assert primeira.get("data_vencimento")
