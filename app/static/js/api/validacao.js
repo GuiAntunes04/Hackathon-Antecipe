@@ -1,20 +1,79 @@
-import { URL_VALIDAR, URL_VALIDAR_DEMO } from "../config.js";
+import { TAMANHO_PAGINA, URL_VALIDAR, URL_VALIDAR_DEMO, urlValidarLote } from "../config.js";
 
 /**
- * Envia CSV para validação.
- * @param {File} file
- * @returns {Promise<{ total_a_receber?: number, notas?: Array<object> }>}
+ * @param {string} body
+ * @param {string} fallback
  */
-export async function postValidar(file) {
+function mensagemErroApi(body, fallback) {
+  if (!body) return fallback;
+  try {
+    const data = JSON.parse(body);
+    const detail = data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+  } catch {
+    /* corpo não-JSON */
+  }
+  return body.length > 200 ? `${body.slice(0, 200)}…` : body;
+}
+
+/**
+ * @param {Response} resp
+ * @param {string} fallback
+ */
+async function parseJsonOuErro(resp, fallback) {
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(mensagemErroApi(text, fallback));
+  }
+  return resp.json();
+}
+
+/**
+ * Envia CSV; valida o arquivo inteiro e devolve a primeira página (ou `pagina` informada).
+ * @param {File} file
+ * @param {{ pagina?: number, tamanhoPagina?: number, filtroStatus?: string }} [opts]
+ */
+export async function postValidar(file, opts = {}) {
+  const pagina = opts.pagina ?? 1;
+  const tamanho = opts.tamanhoPagina ?? TAMANHO_PAGINA;
+  const params = new URLSearchParams({
+    pagina: String(pagina),
+    tamanho_pagina: String(tamanho),
+  });
+  if (opts.filtroStatus && opts.filtroStatus !== "todas") {
+    params.set("status", opts.filtroStatus);
+  }
+
   const body = new FormData();
   body.append("arquivo", file);
 
-  const resp = await fetch(URL_VALIDAR, { method: "POST", body });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(text || resp.statusText);
+  const resp = await fetch(`${URL_VALIDAR}?${params}`, { method: "POST", body });
+  return parseJsonOuErro(resp, resp.statusText);
+}
+
+/**
+ * Carrega uma página de um lote já validado.
+ * @param {string} jobId
+ * @param {number} pagina
+ * @param {number} [tamanhoPagina]
+ * @param {string} [filtroStatus]
+ */
+export async function getValidarPagina(
+  jobId,
+  pagina,
+  tamanhoPagina = TAMANHO_PAGINA,
+  filtroStatus = "todas"
+) {
+  const params = new URLSearchParams({
+    pagina: String(pagina),
+    tamanho_pagina: String(tamanhoPagina),
+  });
+  if (filtroStatus && filtroStatus !== "todas") {
+    params.set("status", filtroStatus);
   }
-  return resp.json();
+  const resp = await fetch(`${urlValidarLote(jobId)}?${params}`);
+  return parseJsonOuErro(resp, resp.statusText);
 }
 
 /**
@@ -24,9 +83,5 @@ export async function postValidar(file) {
 export async function getValidacaoDemo() {
   const resp = await fetch(URL_VALIDAR_DEMO);
   if (resp.status === 404) return null;
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(text || resp.statusText);
-  }
-  return resp.json();
+  return parseJsonOuErro(resp, resp.statusText);
 }

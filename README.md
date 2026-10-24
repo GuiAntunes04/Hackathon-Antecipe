@@ -41,6 +41,18 @@ Troque no `index.html` o script CDN por: `<link href="/static/css/tailwind.css" 
 
 Arquivos: `tailwind.config.js`, `app/static/css/input.css` → saída `app/static/css/tailwind.css`.
 
+## Assets e marca (Kanastra)
+
+| Pasta | Uso |
+|-------|-----|
+| `docs/brand/kanastra/` | Pacote de marca **referência** (guidelines, logos fonte, PDF). Não é exposto pela API. |
+| `app/static/img/brand/` | Logos e imagens **servidas** em `/static/img/brand/...` |
+| `app/static/fonts/` | Fontes web (`@font-face` em `main.css`) |
+
+Detalhes: [docs/brand/kanastra/README.md](docs/brand/kanastra/README.md).
+
+Ícones legados: `app/static/img/logo.svg`, `hero-mountains.png`.
+
 ## Como rodar do zero
 
 Na raiz do projeto:

@@ -9,7 +9,8 @@ from app.api import app
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def test_post_validar_csv() -> None:
+def test_post_validar_csv(monkeypatch) -> None:
+    monkeypatch.setenv("MOCK_VALIDACAO", "false")
     caminho = FIXTURES / "notas_exemplo.csv"
     with TestClient(app) as client:
         with caminho.open("rb") as fh:
@@ -19,5 +20,7 @@ def test_post_validar_csv() -> None:
             )
     assert resp.status_code == 200
     body = resp.json()
+    assert body["job_id"]
     assert body["resumo"]["total_linhas"] == 6
-    assert "notas" in body
+    assert len(body["notas"]) == 6
+    assert body["paginacao"]["pagina"] == 1

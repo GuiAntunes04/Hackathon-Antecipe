@@ -121,29 +121,66 @@
     };
   </script>
 </head>
-<body class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 text-slate-900 antialiased">
-  <div class="mx-auto w-full max-w-screen-2xl px-0 py-6 lg:px-8 lg:py-8 xl:px-10">
-    <div class="grid grid-cols-12 gap-x-0 lg:gap-x-6">
-      <div class="col-span-12 lg:col-span-8 lg:col-start-3">
-        <div class="px-4 lg:px-0">
-          <header class="mb-8">
-            <p class="text-sm font-medium uppercase tracking-wide text-indigo-600">Hackathon Antecipe</p>
-            <h1 class="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Portal Antecipe</h1>
-            <p class="mt-2 text-slate-600">Envie um CSV de recebíveis para validação.</p>
-          </header>
+<body class="portal-app min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 text-slate-900 antialiased">
+  <div class="portal-hero-bg" aria-hidden="true">
+    <img
+      class="portal-hero-bg__img"
+      src="https://img.notionusercontent.com/s3/prod-files-secure%2F59520267-1a82-407d-90da-7f3c8d88bf7d%2F747c3084-f408-402e-9244-6dcadc901e40%2Fimage.png/size/w=2000?tok=eyJhbGciOiJFUzI1NiIsImtpZCI6IlI3dzVrRnREIiwidHlwIjoiSldUIn0.eyJzcGFjZUlkIjoiNTk1MjAyNjctMWE4Mi00MDdkLTkwZGEtN2YzYzhkODhiZjdkIiwiZmlsZUlkIjoiNzQ3YzMwODQtZjQwOC00MDJlLTkyNDQtNmRjYWRjOTAxZTQwIiwicmVjb3JkIjoiYmxvY2s6NDAzN2UwNDctNWMzMy04MTA5LTkwNmQtZWU5M2ZiZjljZWJiIiwiZXhwIjoxNzkyOTQ5NTMyfQ.dxz5WeeEP9afYM1ffmnti_k8Iltk2QryU7j5sEyivj8BcpMF46bd_Ty6hJi3TD8LKHBIdqVj22lyOtmxDvlvQw&amp;imgBuildSrc=createSecureFileAccessTokenImageUrl&amp;mtd=com"
+      alt=""
+      width="2000"
+      height="400"
+      decoding="async"
+      fetchpriority="high"
+      referrerpolicy="no-referrer"
+      onerror="this.onerror=null;this.src='/static/img/hero-mountains.png';"
+    />
+  </div>
+  <div class="cinematic-progress" aria-hidden="true"></div>
+  <header class="portal-header">
+    <div class="portal-header__brand">
+      <span class="portal-header__logo" aria-hidden="true">
+        <img
+          src="/static/img/brand/logo-reduzida.svg"
+          alt=""
+          width="26"
+          height="36"
+          decoding="async"
+          fetchpriority="high"
+        />
+      </span>
+      <h1 class="portal-header__title">Portal Antecipe</h1>
+    </div>
+  </header>
+  <main class="cinematic-main cinematic-main--with-fixed-header">
+    <div class="portal-main-wrap mx-auto w-full max-w-screen-2xl px-0 pb-6 pt-2 lg:px-8 lg:pb-8 xl:px-10">
+      <div class="grid grid-cols-12 gap-x-0 lg:gap-x-6">
+        <div class="portal-content-column col-span-12 lg:col-span-8 lg:col-start-3">
+          <section
+            id="upload-section"
+            class="portal-upload-stage cinematic-scene cinematic-reveal cinematic-reveal--immediate px-4 lg:px-0"
+          >
+            <div id="upload-root"></div>
+            <div id="status" class="mt-4 empty:hidden" role="status" aria-live="polite"></div>
+          </section>
 
-          <div id="upload-root"></div>
-          <div id="status" class="mt-4 empty:hidden" role="status" aria-live="polite"></div>
+          <section
+            id="dashboard-root"
+            class="dashboard-resumo panel panel--full-bleed-mobile cinematic-scene cinematic-reveal hidden"
+            aria-live="polite"
+          ></section>
+
+          <section
+            id="table-root"
+            class="panel panel--full-bleed-mobile cinematic-scene cinematic-reveal hidden"
+          ></section>
         </div>
-
-        <div id="summary-root" class="panel panel--full-bleed-mobile mt-4 hidden"></div>
-        <div id="table-root" class="panel panel--full-bleed-mobile mt-4 hidden"></div>
       </div>
     </div>
-  </div>
+  </main>
 
   <!-- Depois do Tailwind CDN para não perder estilos de componentes (badges, panel) -->
   <link href="/static/css/main.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

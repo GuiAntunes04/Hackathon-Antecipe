@@ -6,15 +6,16 @@ import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
+from uuid import uuid4
 
 import structlog
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.config import carregar_config
 from app.logging_setup import configurar_logging
-from app import mock_validacao, pipeline
+from app import lote_cache, mock_validacao, pipeline
 
 logger = structlog.get_logger(__name__)
 
@@ -29,10 +30,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configurar_logging(config.log_level)
     app.state.config = config
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    lote_cache.garantir_diretorio()
     logger.info(
         "aplicacao_iniciada",
         data_base=config.data_base.isoformat(),
         caminho_validadores=str(config.caminho_validadores),
+        mock_validacao=config.mock_validacao,
     )
     yield
 
@@ -44,6 +47,19 @@ app = FastAPI(
 )
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+HERO_FUNDO_ARQUIVO = STATIC_DIR / "img" / "hero-mountains.png"
+HERO_FUNDO_PATH = (
+    "/image/attachment%3A747c3084-f408-402e-9244-6dcadc901e40%3Aimage.png"
+)
+
+
+@app.get(HERO_FUNDO_PATH)
+def hero_fundo_portal() -> FileResponse:
+    """Serve a arte de fundo na URL usada pelo layout (compatível com link Notion/Cursor)."""
+    if not HERO_FUNDO_ARQUIVO.is_file():
+        raise HTTPException(status_code=404, detail="Imagem de fundo não encontrada.")
+    return FileResponse(HERO_FUNDO_ARQUIVO, media_type="image/png")
 
 
 @app.get("/saude")
@@ -88,27 +104,93 @@ def validar_demo() -> JSONResponse:
 
 
 @app.post("/validar")
-async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
-    """Recebe CSV de notas e devolve resultado da validação (API)."""
+async def validar(
+    arquivo: UploadFile = File(...),
+    pagina: int = Query(1, ge=1),
+    tamanho_pagina: int = Query(
+        lote_cache.TAMANHO_PAGINA_PADRAO, ge=1, le=500
+    ),
+    status: str | None = Query(None, description="todas | aprovada | recusada"),
+) -> JSONResponse:
+    """Valida o CSV inteiro, persiste o lote e devolve a página solicitada."""
     config = app.state.config
-    await arquivo.read()
 
-    if config.mock_validacao:
-        logger.info(
-            "validar_mock",
-            nome_arquivo=arquivo.filename,
-            content_type=arquivo.content_type,
-        )
-        return JSONResponse(content=mock_validacao.resultado_simulado())
+    conteudo = await arquivo.read()
+    if not conteudo:
+        raise HTTPException(status_code=400, detail="Arquivo CSV vazio.")
+
+    nome_seguro = Path(arquivo.filename or "upload.csv").name
+    destino = DATA_DIR / f"{uuid4().hex}_{nome_seguro}"
 
     logger.info(
         "validar_solicitado",
         nome_arquivo=arquivo.filename,
         content_type=arquivo.content_type,
+        pagina=pagina,
+        tamanho_pagina=tamanho_pagina,
+        status=status,
     )
-    resultado = pipeline.validar_arquivo_csv(
-        caminho_csv=Path("data") / (arquivo.filename or "upload.csv"),
-        caminho_validadores=config.caminho_validadores,
-        data_base=config.data_base,
+
+    try:
+        destino.write_bytes(conteudo)
+        resultado = pipeline.validar_arquivo_csv(
+            caminho_csv=destino,
+            caminho_validadores=config.caminho_validadores,
+            data_base=config.data_base,
+        )
+        job_id = lote_cache.salvar_lote(resultado)
+        resposta = lote_cache.resposta_pagina_lote(
+            resultado,
+            job_id,
+            pagina=pagina,
+            tamanho_pagina=tamanho_pagina,
+            filtro_status=status,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        destino.unlink(missing_ok=True)
+
+    logger.info(
+        "validar_pagina",
+        job_id=job_id,
+        pagina=resposta["paginacao"]["pagina"],
+        total_paginas=resposta["paginacao"]["total_paginas"],
     )
-    return JSONResponse(content=resultado)
+    return JSONResponse(content=resposta)
+
+
+@app.get("/validar/lote/{job_id}")
+def validar_lote_pagina(
+    job_id: str,
+    pagina: int = Query(1, ge=1),
+    tamanho_pagina: int = Query(
+        lote_cache.TAMANHO_PAGINA_PADRAO, ge=1, le=500
+    ),
+    status: str | None = Query(None, description="todas | aprovada | recusada"),
+) -> JSONResponse:
+    """Devolve uma página de notas já validadas do lote."""
+    try:
+        lote = lote_cache.carregar_lote(job_id)
+        resposta = lote_cache.resposta_pagina_lote(
+            lote,
+            job_id,
+            pagina=pagina,
+            tamanho_pagina=tamanho_pagina,
+            filtro_status=status,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    logger.info(
+        "validar_lote_pagina",
+        job_id=job_id,
+        pagina=resposta["paginacao"]["pagina"],
+        total_paginas=resposta["paginacao"]["total_paginas"],
+        filtro_status=resposta.get("filtro_status"),
+    )
+    return JSONResponse(content=resposta)

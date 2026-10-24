@@ -6,7 +6,9 @@ __pycache__/
 venv/
 .env.local
 data/*.csv
+data/lotes/*.json
 !data/.gitkeep
+!data/lotes/.gitkeep
 *.zip
 *.7z
 *.tar.gz
