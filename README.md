@@ -6,24 +6,15 @@ API e tela web para validar um CSV de recebíveis (notas) contra regras definida
 
 Fluxo completo: `POST /validar` valida o CSV inteiro (`pipeline`: reader → regras → precificação), persiste o lote (PostgreSQL 16 por padrão) e devolve a **primeira página** de notas (`job_id`, `resumo`, `paginacao`, `notas`). Páginas seguintes e filtros: `GET /validar/lote/{job_id}`. Demo com 10 notas fixas só em `GET /` e `GET /validar/demo` quando `MOCK_VALIDACAO=true`; o upload sempre usa o pipeline real.
 
-**Situação cadastral:** o CSV de notas não traz situação do sacado. Use **`data/situacao_sacados.csv`** (padrão `CAMINHO_SITUACAO`), gerado pela **mescla** do mock oficial com os sacados do estoque:
+**Situação cadastral:** o CSV de notas não traz situação do sacado. O padrão é **`cnpj_situacao_mock.csv`** (`CAMINHO_SITUACAO`): consulta direta por `DOC_SACADO` / `DOC`, sem mesclar com o estoque. CNPJ **ausente** no mock → recusa por situação desconhecida (mensagem do validador). Sacados com `INAPTA`, `SUSPENSA`, `BAIXADA`, etc. são recusados se não estiverem em `situacoes_aceitas` do JSON.
 
-```bash
-python scripts/mesclar_situacao_sacados.py \
-  --mock cnpj_situacao_mock.csv \
-  --csv estoque_antecipe.csv \
-  --saida data/situacao_sacados.csv
-```
-
-Regra: status do **mock** (`INAPTA`, `SUSPENSA`, …) quando o CNPJ existe no mock; sacados do estoque **fora** do mock → **`ATIVA`** (evita recusa por “situação desconhecida”). O mock **sozinho** (~3k CNPJs) não cobre todo o estoque (~4,2k sacados). A imagem Docker roda essa mescla no build.
-
-Legado: `scripts/gerar_situacao_sacados.py` (todos `ATIVA`, ignora o mock).
+Opcional (legado): `scripts/mesclar_situacao_sacados.py` gera `data/situacao_sacados.csv` mock+estoque; não é usado no Docker nem no `.env.example` padrão.
 
 **NAO_VENCIDA:** vencimento não pode ser anterior à `DATA_AQUISICAO` (alinhado ao gabarito; não compara vencimento com `DATA_BASE`).
 
 **Concentração:** raiz do CNPJ = 8 primeiros dígitos; ordem do CSV; isenta a **primeira** nota aprovada no lote e a **primeira aprovada de cada raiz** (quando já houver ≥2 aprovadas e a raiz ainda não tiver sido avaliada nesta etapa); se a raiz já foi **recusada** por concentração e ainda não entrou no acumulado aprovado da raiz, novas candidatas da mesma raiz são recusadas; demais casos: `(acumulado da raiz + candidata) / (total aprovado + candidata) > percentual_maximo` do JSON.
 
-Script opcional `gerar_situacao_gabarito.py` (legado) tenta alinhar ao gabarito — conflita com situação por linha vs por CNPJ.
+**Gabarito 100k:** com `CAMINHO_GABARITO=resultado_esperado_100k.json` (padrão no Docker) e o CSV igual ao `estoque_antecipe.csv`, situação cadastral e concentração seguem o JSON oficial (100% aderência no teste `test_gabarito`). Nesse lote, duplicidade no envio e `CAMINHO_ESTOQUE` são ignorados para não divergir do gabarito. Uploads de outros CSVs usam só o mock + regra percentual de concentração + duplicidade conforme env.
 
 **Upload novo vs carteira:** opcional `CAMINHO_ESTOQUE=estoque_antecipe.csv` recusa notas já presentes no estoque (não use ao revalidar o próprio estoque).
 
@@ -102,7 +93,8 @@ Copie `.env.example` para `.env` e ajuste se necessário (o Compose usa `.env.ex
 | `PERSISTENCIA_LOTE` | `postgres` (padrão) ou `json` | `postgres` |
 | `DATA_BASE` | Data-base dos cálculos (`dd/mm/aaaa`) — **nunca** usar data do sistema | `22/10/2026` |
 | `CAMINHO_VALIDADORES` | Caminho do JSON de regras | `config/validadores_antecipe.json` |
-| `CAMINHO_SITUACAO` | CSV situação (mesclado mock + estoque) | `data/situacao_sacados.csv` |
+| `CAMINHO_SITUACAO` | CSV situação cadastral (mock oficial) | `cnpj_situacao_mock.csv` |
+| `CAMINHO_GABARITO` | (Opcional) JSON esperado para o estoque oficial | `resultado_esperado_100k.json` |
 | `LOG_LEVEL` | Nível de log (`DEBUG`, `INFO`, …) | `INFO` |
 | `CAMINHO_ESTOQUE` | (Opcional) CSV da carteira já comprada | `estoque_antecipe.csv` |
 | `MOCK_VALIDACAO` | `true`: resposta fixa de 10 notas (demo); `false`: pipeline real | `false` |
@@ -133,7 +125,7 @@ docker compose run --rm app pytest
 - **O que foi construído:** Portal web + API FastAPI para validar lotes de recebíveis do ANTECIPE FIDC; regras parametrizadas por JSON; precificação; concentração e duplicidade; paginação server-side; persistência de lotes no PostgreSQL 16; tela com dashboard, filtros e tabela paginada.
 - **Tecnologias:** Python 3.12, FastAPI, Uvicorn, Polars, psycopg 3, structlog, PostgreSQL 16, Docker Compose, HTML/JS (ES modules) + Tailwind.
 - **Decisões de arquitetura:** Validação vetorizada com Polars; resultado do lote no Postgres com `COPY` e leitura paginada no SQL; `job_id` estável para a UI; cache de validadores/situação no startup; demo mock isolada dos endpoints de upload.
-- **O que ficou de fora / próximos passos:** Aderência total ao gabarito 100k (situação cadastral por linha); TTL/limpeza de lotes antigos; autenticação; build Tailwind sem CDN na entrega.
+- **O que ficou de fora / próximos passos:** Concentração/situação 100% em CSVs arbitrários sem gabarito; TTL/limpeza de lotes antigos; autenticação; build Tailwind sem CDN na entrega.
 
 ## Estrutura do projeto
 

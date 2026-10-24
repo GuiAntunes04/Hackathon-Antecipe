@@ -1,4 +1,4 @@
-"""Geração e manutenção de ``data/situacao_sacados.csv`` (situação cadastral dos sacados)."""
+"""Situação cadastral: mock oficial (``cnpj_situacao_mock.csv``) e utilitários legados."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from app.reader import ler_csv_notas
 logger = structlog.get_logger(__name__)
 
 SITUACAO_PATH = Path("data/situacao_sacados.csv")
+MOCK_SITUACAO_PADRAO = Path("cnpj_situacao_mock.csv")
 ESTOQUE_CSV_PADRAO = Path("estoque_antecipe.csv")
 
 
@@ -40,25 +41,57 @@ def _ler_situacao_existente(caminho: Path) -> pl.DataFrame:
     )
 
 
-def incorporar_sacados_do_csv(caminho_notas: Path, saida: Path = SITUACAO_PATH) -> Path:
-    """
-    Garante que todo ``DOC_SACADO`` do CSV de upload conste na situação (default ATIVA).
-    Usado antes do pipeline para não recusar tudo por situação desconhecida.
-    """
+def _mesclar_sacados_na_situacao(
+    caminho_notas: Path,
+    base: Path,
+) -> pl.DataFrame:
+    """Une sacados do CSV de notas à situação ``base`` (novos sacados → ATIVA)."""
     novos = (
         ler_csv_notas(caminho_notas)
         .select(pl.col("DOC_SACADO").unique())
         .with_columns(pl.lit("ATIVA").alias("SITUACAO"))
     )
-    existente = _ler_situacao_existente(saida)
+    existente = _ler_situacao_existente(base)
     if existente.height == 0:
-        combinado = novos.sort("DOC_SACADO")
-    else:
-        combinado = (
-            pl.concat([existente, novos], how="vertical_relaxed")
-            .unique(subset=["DOC_SACADO"], keep="first")
-            .sort("DOC_SACADO")
-        )
+        return novos.sort("DOC_SACADO")
+    return (
+        pl.concat([existente, novos], how="vertical_relaxed")
+        .unique(subset=["DOC_SACADO"], keep="first")
+        .sort("DOC_SACADO")
+    )
+
+
+def situacao_para_validacao(
+    caminho_notas: Path,
+    base: Path,
+    saida_temporaria: Path,
+) -> Path:
+    """
+    Gera CSV de situação para um upload sem alterar o arquivo canônico ``base``.
+
+    Sacados já presentes em ``base`` mantêm o status da mescla mock+estoque;
+    sacados novos do upload recebem ATIVA.
+    """
+    combinado = _mesclar_sacados_na_situacao(caminho_notas, base)
+    saida_temporaria.parent.mkdir(parents=True, exist_ok=True)
+    combinado.write_csv(saida_temporaria, separator=";")
+    logger.info(
+        "situacao_validacao_temporaria",
+        origem=str(caminho_notas),
+        base=str(base),
+        total_sacados=combinado.height,
+        arquivo=str(saida_temporaria),
+    )
+    return saida_temporaria
+
+
+def incorporar_sacados_do_csv(caminho_notas: Path, saida: Path = SITUACAO_PATH) -> Path:
+    """
+    Garante que todo ``DOC_SACADO`` do CSV conste em ``saida`` (default ATIVA se novo).
+
+    Preferir ``situacao_para_validacao`` na API para não sobrescrever a mescla canônica.
+    """
+    combinado = _mesclar_sacados_na_situacao(caminho_notas, saida)
     saida.parent.mkdir(parents=True, exist_ok=True)
     combinado.write_csv(saida, separator=";")
     logger.info(
@@ -72,21 +105,16 @@ def incorporar_sacados_do_csv(caminho_notas: Path, saida: Path = SITUACAO_PATH) 
 
 def garantir_arquivo_situacao(
     origem: Path | None = None,
-    saida: Path = SITUACAO_PATH,
+    saida: Path | None = None,
 ) -> Path | None:
     """
-    Se ``saida`` não existir, gera a partir de ``origem`` ou ``estoque_antecipe.csv``.
+    Retorna o CSV de situação configurado se existir (sem mesclar estoque).
+
+    ``origem`` ignorado (compatibilidade); use ``CAMINHO_SITUACAO=cnpj_situacao_mock.csv``.
     """
-    if saida.is_file():
-        return saida
-    candidato = origem or ESTOQUE_CSV_PADRAO
-    if not candidato.is_file():
-        logger.warning(
-            "situacao_sacados_ausente",
-            arquivo=str(saida),
-            origem=str(candidato),
-        )
-        return None
-    n = gerar_de_notas(candidato, saida)
-    logger.info("situacao_sacados_gerada", origem=str(candidato), sacados=n, arquivo=str(saida))
-    return saida
+    del origem
+    caminho = saida if saida is not None else MOCK_SITUACAO_PADRAO
+    if caminho.is_file():
+        return caminho
+    logger.warning("situacao_cadastral_ausente", arquivo=str(caminho))
+    return None

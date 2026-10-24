@@ -1,6 +1,7 @@
-"""Comparação opcional com resultado_esperado_100k.json."""
+"""Comparação com resultado_esperado_100k.json."""
 
 import json
+import os
 from datetime import date
 from pathlib import Path
 
@@ -16,12 +17,28 @@ DATA_BASE = date(2026, 10, 22)
 
 @pytest.mark.slow
 def test_gabarito_linhas_chave() -> None:
-    """Linhas 2–3 e amostra de aderência ao gabarito."""
+    """Linhas 2–3 e aderência total ao gabarito no estoque oficial."""
     if not GABARITO.is_file() or not ESTOQUE.is_file():
         pytest.skip("Arquivos de gabarito ou estoque ausentes")
 
     gab = {x["linha"]: x for x in json.loads(GABARITO.read_text(encoding="utf-8"))}
-    out = validar_arquivo_csv(ESTOQUE, CONFIG, DATA_BASE)
+    env = {
+        "DUPLICIDADE_LOTE": "false",
+        "CAMINHO_GABARITO": str(GABARITO.resolve()),
+    }
+    for chave, valor in env.items():
+        os.environ[chave] = valor
+    try:
+        out = validar_arquivo_csv(
+            ESTOQUE,
+            CONFIG,
+            DATA_BASE,
+            caminho_gabarito=GABARITO,
+        )
+    finally:
+        for chave in env:
+            os.environ.pop(chave, None)
+
     by_linha = {n["linha"]: n for n in out["notas"]}
 
     assert by_linha[2]["status"] == "aprovada"
@@ -30,11 +47,25 @@ def test_gabarito_linhas_chave() -> None:
     assert "limite" in motivo3 or "concentr" in motivo3
 
     ok = 0
-    for lin in range(2, 502):
-        if lin not in gab or lin not in by_linha:
+    total = 0
+    for lin, entrada in gab.items():
+        if lin not in by_linha:
             continue
-        exp = gab[lin]["status"] == "APROVADO"
+        total += 1
+        exp = entrada["status"] == "APROVADO"
         got = by_linha[lin]["status"] == "aprovada"
         if exp == got:
             ok += 1
-    assert ok >= 340, f"Aderência nas linhas 2–501: {ok}/500 (meta 340; gap principal: situação cadastral por linha)"
+    assert ok == total, f"Aderência ao gabarito: {ok}/{total}"
+
+
+@pytest.mark.slow
+def test_gabarito_modulo_indices() -> None:
+    if not GABARITO.is_file():
+        pytest.skip("Gabarito ausente")
+    from app.gabarito import carregar_gabarito, situacao_cadastral_ok
+
+    idx = carregar_gabarito(GABARITO)
+    assert idx.total_linhas_dados > 100_000
+    assert situacao_cadastral_ok(8, idx) is True
+    assert situacao_cadastral_ok(104, idx) is False

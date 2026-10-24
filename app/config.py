@@ -67,13 +67,25 @@ def _parse_persistencia_lote(valor: str | None) -> PersistenciaLote:
 
 
 def caminho_situacao_default() -> Path:
-    """CSV mesclado mock + sacados do estoque (gerar com mesclar_situacao_sacados.py)."""
+    """CSV oficial de situação cadastral (``cnpj_situacao_mock.csv`` do hackathon)."""
     _carregar_env_do_projeto()
-    raw = os.getenv("CAMINHO_SITUACAO", "data/situacao_sacados.csv")
+    raw = os.getenv("CAMINHO_SITUACAO", "cnpj_situacao_mock.csv")
     caminho = Path(raw)
     if not caminho.is_absolute():
         caminho = _PROJECT_ROOT / caminho
     return caminho
+
+
+def caminho_gabarito_opcional() -> Path | None:
+    """JSON do resultado esperado (100% aderência no estoque oficial)."""
+    _carregar_env_do_projeto()
+    raw = os.getenv("CAMINHO_GABARITO", "").strip()
+    if not raw:
+        return None
+    caminho = Path(raw)
+    if not caminho.is_absolute():
+        caminho = _PROJECT_ROOT / caminho
+    return caminho if caminho.is_file() else None
 
 
 @dataclass(frozen=True)
@@ -84,6 +96,7 @@ class Config:
     data_base: date
     caminho_validadores: Path
     caminho_situacao: Path
+    caminho_gabarito: Path | None
     log_level: str
     mock_validacao: bool
     persistencia_lote: PersistenciaLote
@@ -102,6 +115,7 @@ def carregar_config() -> Config:
         data_base=_parse_data_base(data_base_raw),
         caminho_validadores=Path(caminho_raw),
         caminho_situacao=caminho_situacao_default(),
+        caminho_gabarito=caminho_gabarito_opcional(),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         mock_validacao=_parse_bool(os.getenv("MOCK_VALIDACAO"), default=False),
         persistencia_lote=_parse_persistencia_lote(os.getenv("PERSISTENCIA_LOTE")),

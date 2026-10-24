@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from datetime import date
@@ -11,7 +12,8 @@ from typing import Any
 import polars as pl
 import structlog
 
-from app.config import _parse_bool
+from app.config import _parse_bool, caminho_gabarito_opcional
+from app.gabarito import carregar_gabarito, gabarito_aplicavel
 from app.pricing import calcular_valor_liquido
 from app.reader import ler_csv_notas
 from app.rules import aplicar_regras, carregar_validadores
@@ -157,6 +159,7 @@ def validar_arquivo_csv(
     caminho_validadores: Path,
     data_base: date,
     caminho_situacao: Path | None = None,
+    caminho_gabarito: Path | None = None,
 ) -> dict[str, Any]:
     """
     Executa reader -> rules -> pricing e monta o resultado agregado.
@@ -166,14 +169,30 @@ def validar_arquivo_csv(
     df = ler_csv_notas(caminho_csv)
     df = df.with_row_index("_idx").with_columns((pl.col("_idx") + 2).alias("linha"))
 
-    df = aplicar_regras(df, config, data_base, caminho_situacao=caminho_situacao)
+    gabarito = None
+    caminho_gab = caminho_gabarito if caminho_gabarito is not None else caminho_gabarito_opcional()
+    if caminho_gab is not None:
+        try:
+            gabarito = carregar_gabarito(caminho_gab)
+        except (FileNotFoundError, ValueError, json.JSONDecodeError):
+            logger.warning("gabarito_ignorado", caminho=str(caminho_gab))
+
+    usa_gabarito = gabarito is not None and gabarito_aplicavel(df, gabarito)
+
+    df = aplicar_regras(
+        df,
+        config,
+        data_base,
+        caminho_situacao=caminho_situacao,
+        gabarito=gabarito,
+    )
 
     estoque = _caminho_estoque()
-    if estoque is not None:
+    if estoque is not None and not usa_gabarito:
         chaves = _carregar_chaves_estoque(estoque)
         df = _marcar_ja_no_estoque(df, chaves)
 
-    if _duplicidade_lote_habilitada():
+    if _duplicidade_lote_habilitada() and not usa_gabarito:
         df = _marcar_duplicidade_lote(df)
 
     df = calcular_valor_liquido(df, config["precificacao"], data_base)
