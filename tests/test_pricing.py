@@ -39,6 +39,19 @@ def test_recusada_sem_valor_liquido() -> None:
     assert out["valor_liquido"][0] is None
 
 
+def test_vencimento_anterior_data_base_liquido_igual_nominal() -> None:
+    """Nota já vencida na data-base: sem «desconto negativo» (líquido > bruto)."""
+    df = pl.DataFrame(
+        {
+            "VALOR_NOMINAL": [2278.08],
+            "DATA_VENCIMENTO_ORIGINAL": [date(2026, 10, 7)],
+            "aprovada": [True],
+        }
+    )
+    out = calcular_valor_liquido(df, PRECIFICACAO, DATA_BASE)
+    assert out["valor_liquido"][0] == 2278.08
+
+
 def test_metodo_desconhecido() -> None:
     df = pl.DataFrame(
         {

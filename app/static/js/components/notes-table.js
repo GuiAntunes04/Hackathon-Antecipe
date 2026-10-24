@@ -5,35 +5,11 @@ import {
   TAMANHOS_PAGINA,
 } from "../config.js";
 import { getLocale, t } from "../i18n.js";
-import { escapeHtml, formatMoney } from "../lib/format.js";
-
-/**
- * Valor exibido na coluna Valor: líquido se aprovada, nominal se recusada.
- * @param {object} nota
- */
-function valorColuna(nota) {
-  const lower = String(nota.status ?? "").toLowerCase();
-  if (lower === "aprovada" && nota.valor_liquido != null) {
-    return formatMoney(nota.valor_liquido);
-  }
-  if (nota.valor_nominal != null) {
-    return formatMoney(nota.valor_nominal);
-  }
-  return formatMoney(nota.valor_liquido);
-}
-
-/**
- * @param {object} nota
- * @returns {number}
- */
-function valorAReceber(nota) {
-  const lower = String(nota.status ?? "").toLowerCase();
-  if (lower !== "aprovada") return 0;
-  const v = nota.valor_liquido;
-  if (v == null || v === "") return 0;
-  const num = typeof v === "number" ? v : Number(String(v).replace(",", "."));
-  return Number.isNaN(num) ? 0 : num;
-}
+import { escapeHtml } from "../lib/format.js";
+import {
+  formatValorLiquidoSimulado,
+  formatValorNominalNota,
+} from "../lib/nota-valores.js?v=20261024d";
 
 /** @param {object} nota */
 function celulaStatus(nota) {
@@ -64,14 +40,27 @@ function mostrarBannerNota(banner, nota) {
     const motivo = nota.motivo ? String(nota.motivo) : t("banner.noReason");
     banner.classList.add("nota-recebivel-banner--recusada");
     banner.innerHTML = `
-      <p class="nota-recebivel-banner__titulo">${escapeHtml(t("banner.rejectTitle", { doc }))}</p>
+      <div class="nota-recebivel-banner__lead">
+        <p class="nota-recebivel-banner__titulo">${escapeHtml(t("banner.rejectTitle", { doc }))}</p>
+        <p class="nota-recebivel-banner__hint">${escapeHtml(t("banner.rejectHint"))}</p>
+      </div>
       <p class="nota-recebivel-banner__motivo">${escapeHtml(motivo)}</p>
     `;
-  } else {
-    const valorFmt = formatMoney(valorAReceber(nota));
+  } else if (lower === "aprovada") {
+    const valorFmt = formatValorLiquidoSimulado(nota);
     banner.innerHTML = `
-      <p class="nota-recebivel-banner__titulo">${escapeHtml(t("banner.simTitle", { doc }))}</p>
+      <div class="nota-recebivel-banner__lead">
+        <p class="nota-recebivel-banner__titulo">${escapeHtml(t("banner.simTitle", { doc }))}</p>
+        <p class="nota-recebivel-banner__hint">${escapeHtml(t("banner.simHint"))}</p>
+      </div>
       <p class="nota-recebivel-banner__valor">${escapeHtml(valorFmt)}</p>
+    `;
+  } else {
+    banner.innerHTML = `
+      <div class="nota-recebivel-banner__lead">
+        <p class="nota-recebivel-banner__titulo">${escapeHtml(t("banner.detailTitle", { doc }))}</p>
+        <p class="nota-recebivel-banner__hint">${escapeHtml(t("banner.detailHint"))}</p>
+      </div>
     `;
   }
 
@@ -113,7 +102,7 @@ function htmlLinhas(lista) {
         <td class="notes-table__cell notes-table__cell--nota">${doc}</td>
         <td class="notes-table__cell notes-table__cell--sacado">${escapeHtml(nota.nome_sacado ?? "—")}</td>
         <td class="notes-table__cell notes-table__cell--vencimento">${escapeHtml(nota.data_vencimento ?? "—")}</td>
-        <td class="notes-table__cell notes-table__cell--valor">${escapeHtml(valorColuna(nota))}</td>
+        <td class="notes-table__cell notes-table__cell--valor">${escapeHtml(formatValorNominalNota(nota))}</td>
         <td class="notes-table__cell notes-table__cell--status">${celulaStatus(nota)}</td>
       </tr>`;
     })
@@ -294,17 +283,36 @@ function htmlPaginacao(paginacao, carregando) {
 }
 
 /**
+ * @param {NodeListOf<Element>} headCols
+ * @param {NodeListOf<Element>} bodyCols
+ */
+function limparLargurasColunasTabela(headCols, bodyCols) {
+  headCols.forEach((col) => {
+    col.style.width = "";
+  });
+  bodyCols.forEach((col) => {
+    col.style.width = "";
+  });
+}
+
+const REALINHAR_COLUNAS_MAX_TENTATIVAS = 8;
+
+/**
  * Alinha cabeçalho e corpo (largura útil + colunas + scroll horizontal).
+ * Com linha vazia (`colspan`), mantém proporções do CSS — não trava largura em px.
  * @param {HTMLElement} container
+ * @returns {boolean} `true` se aplicou (ou resetou) alinhamento; `false` se área ainda sem largura
  */
 function alinharColunasTabela(container) {
   const scroll = container.querySelector(".notes-table-scroll");
   const headInner = container.querySelector(".notes-table-head-inner");
   const headTable = container.querySelector(".notes-table--head");
   const bodyTable = container.querySelector(".notes-table--body");
-  if (!scroll || !headInner || !headTable || !bodyTable) return;
+  if (!scroll || !headInner || !headTable || !bodyTable) return false;
 
   const larguraUtil = scroll.clientWidth;
+  if (larguraUtil <= 0) return false;
+
   const gutter = scroll.offsetWidth - scroll.clientWidth;
   const headWrap = container.querySelector(".notes-table-head");
   if (headWrap) {
@@ -315,40 +323,89 @@ function alinharColunasTabela(container) {
   headTable.style.width = larguraPx;
   bodyTable.style.width = larguraPx;
 
-  const linhaCorpo = bodyTable.querySelector("tbody tr");
-  const referencia = linhaCorpo
-    ? linhaCorpo.querySelectorAll("td")
-    : headTable.querySelectorAll("th");
   const headCols = headTable.querySelectorAll("colgroup col");
   const bodyCols = bodyTable.querySelectorAll("colgroup col");
+  limparLargurasColunasTabela(headCols, bodyCols);
 
-  referencia.forEach((celula, i) => {
+  const linhaCorpo = bodyTable.querySelector("tbody tr");
+  const linhaVazia = Boolean(linhaCorpo?.querySelector(".notes-table__empty"));
+  const celulasCorpo = linhaCorpo?.querySelectorAll("td") ?? [];
+  const usarCorpo =
+    linhaCorpo && !linhaVazia && celulasCorpo.length >= headCols.length;
+
+  if (!usarCorpo) {
+    container.dataset.notesTableColMode = linhaVazia ? "empty" : "header";
+    headInner.scrollLeft = scroll.scrollLeft;
+    return true;
+  }
+
+  celulasCorpo.forEach((celula, i) => {
+    if (i >= headCols.length) return;
     const px = `${celula.getBoundingClientRect().width}px`;
     if (headCols[i]) headCols[i].style.width = px;
     if (bodyCols[i]) bodyCols[i].style.width = px;
   });
 
+  container.dataset.notesTableColMode = "body";
   headInner.scrollLeft = scroll.scrollLeft;
+  return true;
 }
 
+/** @param {HTMLElement} container @param {number} [tentativa] */
+function agendarRealinhamentoColunas(container, tentativa = 0) {
+  requestAnimationFrame(() => {
+    const ok = alinharColunasTabela(container);
+    if (!ok && tentativa < REALINHAR_COLUNAS_MAX_TENTATIVAS) {
+      agendarRealinhamentoColunas(container, tentativa + 1);
+      return;
+    }
+    const modo = container.dataset.notesTableColMode;
+    if (ok && modo === "body" && tentativa === 0) {
+      requestAnimationFrame(() => alinharColunasTabela(container));
+    }
+  });
+}
+
+const NOTAS_VISIVEIS_SEM_SCROLL = 10;
+
+/**
+ * Ajusta a altura do viewport do tbody para caber até 10 linhas sem scroll interno.
+ * @param {HTMLElement} container
+ * @param {number} qtdLinhasNaPagina
+ * @param {number} tamanhoPagina
+ */
+function ajustarViewportScrollTabela(container, qtdLinhasNaPagina, tamanhoPagina) {
+  const scroll = container.querySelector(".notes-table-scroll");
+  if (!scroll) return;
+
+  const linha = scroll.querySelector("tbody tr:not(:has(.notes-table__empty))");
+  const viewportRows = Math.min(NOTAS_VISIVEIS_SEM_SCROLL, tamanhoPagina);
+
+  let rowPx = 40;
+  if (linha instanceof HTMLElement) {
+    const medido = linha.getBoundingClientRect().height;
+    if (medido > 0) rowPx = medido;
+  } else {
+    const raw = getComputedStyle(document.body)
+      .getPropertyValue("--notes-table-row-height")
+      .trim();
+    const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    if (raw.endsWith("rem")) rowPx = parseFloat(raw) * rootPx;
+    else if (raw.endsWith("px")) rowPx = parseFloat(raw);
+  }
+
+  const alturaMinPx = rowPx * viewportRows;
+  scroll.style.setProperty("--notes-table-viewport-min", `${alturaMinPx}px`);
+  scroll.style.removeProperty("height");
+  scroll.style.removeProperty("maxHeight");
+  scroll.style.minHeight = "";
+
+}
+
+/** Mantém sync horizontal cabeçalho/corpo; rolagem vertical fica na página (Lenis). */
 function vincularWheelScrollTabela(scroll) {
   if (!scroll || scroll.dataset.wheelLenisUnlock === "1") return;
   scroll.dataset.wheelLenisUnlock = "1";
-  scroll.setAttribute("data-lenis-prevent", "");
-  scroll.addEventListener(
-    "wheel",
-    (e) => {
-      const goingUp = e.deltaY < 0;
-      const goingDown = e.deltaY > 0;
-      const atTop = scroll.scrollTop <= 0;
-      const atBottom =
-        scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 1;
-      if ((goingUp && !atTop) || (goingDown && !atBottom)) {
-        e.stopPropagation();
-      }
-    },
-    { passive: true }
-  );
 }
 
 function vincularSyncScrollTabela(container) {
@@ -362,7 +419,7 @@ function vincularSyncScrollTabela(container) {
     headInner.scrollLeft = scroll.scrollLeft;
   });
   if (typeof ResizeObserver !== "undefined") {
-    const ro = new ResizeObserver(() => alinharColunasTabela(container));
+    const ro = new ResizeObserver(() => agendarRealinhamentoColunas(container));
     ro.observe(scroll);
     container._notesTableResizeObserver = ro;
   }
@@ -518,7 +575,7 @@ export function renderNotesTable(container, opts) {
               </table>
             </div>
           </div>
-          <div class="notes-table-scroll" data-lenis-prevent>
+          <div class="notes-table-scroll">
             <table class="notes-table notes-table--body w-full divide-y divide-slate-200 text-left text-sm">
               ${COLGROUP_HTML}
               <tbody class="divide-y divide-slate-100 bg-white"></tbody>
@@ -571,7 +628,12 @@ export function renderNotesTable(container, opts) {
 
   vincularWheelScrollTabela(container.querySelector(".notes-table-scroll"));
 
+  const tamanhoPagina = paginacao?.tamanho_pagina ?? TAMANHO_PAGINA;
+  const linhasCorpo =
+    lista.length === 0 && paginacao?.total_linhas === 0 ? 0 : lista.length;
+  agendarRealinhamentoColunas(container);
   requestAnimationFrame(() => {
-    alinharColunasTabela(container);
+    ajustarViewportScrollTabela(container, linhasCorpo, tamanhoPagina);
+    agendarRealinhamentoColunas(container);
   });
 }

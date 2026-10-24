@@ -7,13 +7,16 @@ import {
   setSmoothScrollActive,
 } from "./cinematic-scroll.js";
 import { postValidar } from "./api/validacao.js";
-import { FILTRO_TODAS, TAMANHO_PAGINA, TAMANHOS_PAGINA } from "./config.js";
 import { mountUploadPanel } from "./components/upload-panel.js";
-import { renderNotesTable } from "./components/notes-table.js";
-import { renderDashboardResumo } from "./components/dashboard-resumo.js";
+import { createNotesTableController } from "./components/notes-table-controller.js?v=20261024k";
+import {
+  renderDashboardResumo,
+  resetDashboardSlide,
+  vincularComboboxSacadoDashboard,
+} from "./components/dashboard-resumo.js";
 import { mountLangSwitcher } from "./components/lang-switcher.js";
 import { applyDocumentLocale, onLocaleChange, t } from "./i18n.js";
-import { parseDataVencimentoBR, parseIsoDate } from "./lib/format.js";
+import { filtrarNotasPorSacado } from "./lib/notas-filtro.js";
 import { showToast } from "./lib/toast.js";
 
 const statusEl = document.getElementById("status");
@@ -21,7 +24,6 @@ const portalHome = document.getElementById("portal-home");
 const portalResults = document.getElementById("portal-results");
 const uploadRoot = document.getElementById("upload-root");
 const dashboardRoot = document.getElementById("dashboard-root");
-const tableRoot = document.getElementById("table-root");
 const btnNovoLote = document.getElementById("btn-novo-lote");
 const langSwitcherRoot = document.getElementById("lang-switcher-root");
 const portalHomeTitle = document.getElementById("portal-home-title");
@@ -44,21 +46,18 @@ function syncScreenA11y() {
   portalResults?.setAttribute("aria-hidden", onHome ? "true" : "false");
 }
 
-/** @type {{ jobId: string | null, paginacao: object | null, resumo: object | null, totalAReceber: number | null, notasCompletas: object[], notasPagina: object[], tamanhoPagina: number, filtroStatus: string, buscaNota: string, dataInicio: string, dataFim: string, statusKind: string | null }} */
+/** @type {{ jobId: string | null, resumo: object | null, totalAReceber: number | null, notasCompletas: object[], sacadosFiltrados: string[], statusKind: string | null }} */
 const loteAtual = {
   jobId: null,
-  paginacao: null,
   resumo: null,
   totalAReceber: null,
   notasCompletas: [],
-  notasPagina: [],
-  tamanhoPagina: TAMANHO_PAGINA,
-  filtroStatus: FILTRO_TODAS,
-  buscaNota: "",
-  dataInicio: "",
-  dataFim: "",
+  sacadosFiltrados: [],
   statusKind: null,
 };
+
+/** @type {ReturnType<typeof createNotesTableController> | null} */
+let tabelaNotas = null;
 
 const STATUS_VARIANTS = {
   secondary:
@@ -128,17 +127,14 @@ function refreshStatusMessage() {
 
 function resetLoteState() {
   loteAtual.jobId = null;
-  loteAtual.paginacao = null;
   loteAtual.resumo = null;
   loteAtual.totalAReceber = null;
   loteAtual.notasCompletas = [];
-  loteAtual.notasPagina = [];
-  loteAtual.tamanhoPagina = TAMANHO_PAGINA;
-  loteAtual.filtroStatus = FILTRO_TODAS;
-  loteAtual.buscaNota = "";
-  loteAtual.dataInicio = "";
-  loteAtual.dataFim = "";
+  loteAtual.sacadosFiltrados = [];
   loteAtual.statusKind = null;
+  resetDashboardSlide();
+  tabelaNotas?.reset();
+  tabelaNotas = null;
 }
 
 async function showHomeScreen() {
@@ -148,6 +144,7 @@ async function showHomeScreen() {
   document.body.classList.add("portal-screen-home");
   document.body.classList.remove("has-resultado-bar");
   document.body.classList.remove("portal-screen-results");
+  document.body.classList.remove("portal-results-tab-notes");
   syncScreenA11y();
   lockHomeScroll();
 
@@ -155,7 +152,6 @@ async function showHomeScreen() {
 
   resetLoteState();
   setStatus("", "");
-  tableRoot.innerHTML = "";
   dashboardRoot.innerHTML = "";
   resetResultsHeaderScroll();
   portalScreenTransitionLock = false;
@@ -181,104 +177,104 @@ async function showResultsScreen() {
   });
 }
 
-function filtrarNotasLocal(notas, filtro) {
-  if (filtro === FILTRO_TODAS) return notas;
-  return notas.filter((n) => String(n.status || "").toLowerCase() === filtro);
+/** @param {object[]} notas */
+function listarSacadosUnicos(notas) {
+  const set = new Set();
+  for (const n of notas || []) {
+    const s = String(n.nome_sacado ?? "").trim();
+    if (s) set.add(s);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
-function filtrarNotasComConsulta(notas, filtro, consulta) {
-  let out = filtrarNotasLocal(notas, filtro);
-  const q = String(consulta.buscaNota ?? "")
-    .trim()
-    .toLowerCase();
-  if (q) {
-    out = out.filter((n) => {
-      const doc = String(n.nu_documento ?? n.linha ?? "").toLowerCase();
-      return doc.includes(q);
-    });
+/** @param {object[]} notas */
+function resumoLocalDasNotas(notas) {
+  let aprovadas = 0;
+  let recusadas = 0;
+  for (const n of notas) {
+    const s = String(n.status ?? "").toLowerCase();
+    if (s === "aprovada") aprovadas += 1;
+    else if (s === "recusada") recusadas += 1;
   }
-  const inicio = parseIsoDate(consulta.dataInicio);
-  const fim = parseIsoDate(consulta.dataFim);
-  if (inicio || fim) {
-    out = out.filter((n) => {
-      const venc = parseDataVencimentoBR(n.data_vencimento);
-      if (!venc) return false;
-      if (inicio && venc < inicio) return false;
-      if (fim && venc > fim) return false;
-      return true;
-    });
-  }
-  return out;
-}
-
-function infoPaginacaoLocal(totalLinhas, pagina, tamanho) {
-  const tamanhoPagina = tamanho > 0 ? tamanho : TAMANHO_PAGINA;
-  if (totalLinhas <= 0) {
-    return {
-      pagina: 1,
-      tamanho_pagina: tamanhoPagina,
-      total_paginas: 1,
-      total_linhas: 0,
-    };
-  }
-  const totalPaginas = Math.max(1, Math.ceil(totalLinhas / tamanhoPagina));
-  const paginaAtual = Math.max(1, Math.min(pagina, totalPaginas));
   return {
-    pagina: paginaAtual,
-    tamanho_pagina: tamanhoPagina,
-    total_paginas: totalPaginas,
-    total_linhas: totalLinhas,
+    total_linhas: notas.length,
+    aprovadas,
+    recusadas,
   };
 }
 
-function fatiarNotasLocal(notas, pagina, tamanho) {
-  const inicio = (pagina - 1) * tamanho;
-  return notas.slice(inicio, inicio + tamanho);
+function obterTableRoot() {
+  return document.getElementById("table-root");
 }
 
-function atualizarVistaTabela(opts = {}) {
-  const filtro = opts.filtro ?? loteAtual.filtroStatus;
-  const tamanho = opts.tamanho ?? loteAtual.tamanhoPagina;
-  const paginaAlvo = opts.pagina ?? loteAtual.paginacao?.pagina ?? 1;
+function obterTabelaNotas() {
+  const el = obterTableRoot();
+  if (!el) return null;
+  if (!tabelaNotas) {
+    tabelaNotas = createNotesTableController(el);
+  } else {
+    tabelaNotas.attach(el);
+  }
+  return tabelaNotas;
+}
 
-  const filtradas = filtrarNotasComConsulta(loteAtual.notasCompletas, filtro, {
-    buscaNota: loteAtual.buscaNota,
-    dataInicio: loteAtual.dataInicio,
-    dataFim: loteAtual.dataFim,
-  });
-  const pag = infoPaginacaoLocal(filtradas.length, paginaAlvo, tamanho);
+function renderizarDashboard() {
+  const focusSacado =
+    document.activeElement instanceof HTMLInputElement &&
+    document.activeElement.id === "dashboard-busca-sacado";
+  const selStart = focusSacado ? document.activeElement.selectionStart : null;
+  const selEnd = focusSacado ? document.activeElement.selectionEnd : null;
 
-  loteAtual.filtroStatus = filtro;
-  loteAtual.tamanhoPagina = pag.tamanho_pagina;
-  loteAtual.paginacao = pag;
-  loteAtual.notasPagina = fatiarNotasLocal(
-    filtradas,
-    pag.pagina,
-    pag.tamanho_pagina
+  const notasDashboard = filtrarNotasPorSacado(
+    loteAtual.notasCompletas,
+    loteAtual.sacadosFiltrados
   );
+  const sacadoAtivo = loteAtual.sacadosFiltrados.length > 0;
 
-  renderDashboardResumo(dashboardRoot, {
-    total_a_receber: loteAtual.totalAReceber,
-    resumo: loteAtual.resumo,
-    notas: loteAtual.notasCompletas,
-  });
+  if (dashboardRoot) {
+    renderDashboardResumo(dashboardRoot, {
+      total_a_receber: sacadoAtivo ? null : loteAtual.totalAReceber,
+      resumo: sacadoAtivo ? resumoLocalDasNotas(notasDashboard) : loteAtual.resumo,
+      notas: notasDashboard,
+      sacadosFiltrados: loteAtual.sacadosFiltrados,
+      sacadosOpcoes: listarSacadosUnicos(loteAtual.notasCompletas),
+    });
+  }
 
-  renderNotesTable(tableRoot, {
-    notas: loteAtual.notasPagina,
-    paginacao: loteAtual.paginacao,
-    filtroStatus: loteAtual.filtroStatus,
-    carregando: Boolean(opts.carregando),
-    onPaginaChange: irParaPagina,
-    onTamanhoPaginaChange: alterarTamanhoPagina,
-    onFiltroStatusChange: alterarFiltroStatus,
-    buscaNota: loteAtual.buscaNota,
-    dataInicio: loteAtual.dataInicio,
-    dataFim: loteAtual.dataFim,
-    onConsultaChange: alterarConsulta,
-  });
+  obterTabelaNotas()?.attach(obterTableRoot());
 
   observeCinematic(portalResults || document);
-  requestAnimationFrame(() => cinematicRefresh());
+  requestAnimationFrame(() => {
+    cinematicRefresh();
+    window.dispatchEvent(new Event("resize"));
+    if (focusSacado) {
+      const inp = dashboardRoot?.querySelector("#dashboard-busca-sacado");
+      if (inp instanceof HTMLInputElement) {
+        inp.focus();
+        if (selStart != null && selEnd != null) {
+          inp.setSelectionRange(selStart, selEnd);
+        }
+      }
+    }
+    if (document.body.classList.contains("portal-results-tab-notes")) {
+      refreshTableLayout();
+    }
+  });
+}
+
+/** @param {{ carregando?: boolean, novoLote?: boolean }} [opts] */
+function sincronizarResultadosLote(opts = {}) {
+  if (opts.novoLote) {
+    resetDashboardSlide();
+    tabelaNotas?.reset();
+    tabelaNotas = null;
+  }
+  renderizarDashboard();
+  const ctrl = obterTabelaNotas();
+  if (!ctrl) return;
+  if (opts.carregando) ctrl.setCarregando(true);
+  ctrl.applyLote(loteAtual.notasCompletas, loteAtual.sacadosFiltrados);
+  if (opts.carregando) ctrl.setCarregando(false);
 }
 
 async function aplicarLoteCompleto(data) {
@@ -286,32 +282,8 @@ async function aplicarLoteCompleto(data) {
   if (data.resumo) loteAtual.resumo = data.resumo;
   if (data.total_a_receber != null) loteAtual.totalAReceber = data.total_a_receber;
   loteAtual.notasCompletas = data.notas || [];
-  atualizarVistaTabela({ pagina: 1 });
+  sincronizarResultadosLote({ novoLote: true });
   await showResultsScreen();
-}
-
-function irParaPagina(pagina, tamanhoOverride) {
-  atualizarVistaTabela({
-    pagina,
-    tamanho: tamanhoOverride ?? loteAtual.tamanhoPagina,
-  });
-}
-
-function alterarTamanhoPagina(novoTamanho) {
-  const tamanho = Number(novoTamanho);
-  if (!TAMANHOS_PAGINA.includes(tamanho)) return;
-  atualizarVistaTabela({ pagina: 1, tamanho });
-}
-
-function alterarFiltroStatus(novoFiltro) {
-  atualizarVistaTabela({ pagina: 1, filtro: novoFiltro });
-}
-
-function alterarConsulta(consulta) {
-  if (consulta.buscaNota != null) loteAtual.buscaNota = consulta.buscaNota;
-  if (consulta.dataInicio != null) loteAtual.dataInicio = consulta.dataInicio;
-  if (consulta.dataFim != null) loteAtual.dataFim = consulta.dataFim;
-  atualizarVistaTabela({ pagina: 1 });
 }
 
 function limparSelecaoArquivo() {
@@ -364,9 +336,39 @@ onLocaleChange(() => {
   mountUpload();
   refreshStatusMessage();
   if (loteAtual.jobId) {
-    atualizarVistaTabela();
+    renderizarDashboard();
+    obterTabelaNotas()?.refresh();
   }
 });
+
+function refreshTableLayout() {
+  window.dispatchEvent(new Event("resize"));
+}
+
+dashboardRoot?.addEventListener("dashboard-slide-changed", (event) => {
+  const slide = event.detail?.slide;
+  if (slide === 2) {
+    requestAnimationFrame(() => {
+      obterTabelaNotas()?.refresh();
+      refreshTableLayout();
+    });
+    return;
+  }
+  requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+});
+
+if (dashboardRoot) {
+  vincularComboboxSacadoDashboard(dashboardRoot);
+  dashboardRoot.addEventListener("dashboard-sacados-changed", (event) => {
+    const sacados = event.detail?.sacados;
+    if (!Array.isArray(sacados)) return;
+    loteAtual.sacadosFiltrados = sacados
+      .map((s) => String(s).trim())
+      .filter(Boolean);
+    renderizarDashboard();
+    obterTabelaNotas()?.applySacadosGlobais(loteAtual.sacadosFiltrados);
+  });
+}
 
 syncScreenA11y();
 lockHomeScroll();

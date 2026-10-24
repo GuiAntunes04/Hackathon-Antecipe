@@ -65,6 +65,13 @@ export function observeCinematic(root = document) {
   root.querySelectorAll(".cinematic-reveal:not([data-cinematic-seen])").forEach((el) => {
     if (el.classList.contains("hidden")) return;
     if (el.closest(".portal-header")) return;
+    if (el.id === "table-root" || el.closest("#table-root")) return;
+    if (
+      el.closest(".dashboard-carousel__slide--table") ||
+      el.closest(".dashboard-view--notes")
+    ) {
+      return;
+    }
     revealObserver.observe(el);
   });
 }
@@ -279,8 +286,6 @@ export async function initCinematicScroll() {
       easing: (t) => Math.min(1, 1.001 - 2 ** (-10 * t)),
       smoothWheel: true,
       touchMultiplier: 1.2,
-      prevent: (node) =>
-        node instanceof Element && Boolean(node.closest(".notes-table-scroll")),
     });
 
     lenis.on("scroll", ({ scroll }) => {

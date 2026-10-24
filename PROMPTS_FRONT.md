@@ -56,6 +56,30 @@ Registro de prompts usados com assistente de IA e o que cada um gerou.
 | 48 | 2026-10-24 | Pesquisa por nota + período de vencimento | `notes-table.js`, `main.js`, `format.js`, `i18n.js`, `main.css` |
 | 49 | 2026-10-24 | Aba **Enviar lote** no início + alternância com resultados | `index.html`, `main.js`, `main.css`, `i18n.js` |
 | 50 | 2026-10-24 | Refatoração: tela inicial (título + upload) → resultados | `index.html`, `main.js`, `upload-panel.js`, `main.css`, `i18n.js` |
+| 51 | 2026-10-24 | Home Kanastra + toast + fundo pattern; resultados coluna branca | `index.html`, `main.css`, `main.js`, `upload-panel.js`, `toast.js`, assets brand |
+| 52 | 2026-10-24 | Dashboard carrossel: 3 painéis (resumo, mensal, erros) | `dashboard-resumo.js`, `main.css`, `i18n.js` |
+| 53 | 2026-10-24 | Carrossel: setas em grid (sem sobrepor); margem superior; nav transparente | `main.css` |
+| 54 | 2026-10-24 | Filtro status → dropdown; fade entre telas | `notes-table.js`, `main.css`, `main.js` |
+| 55 | 2026-10-24 | Merge `feat/back` em `main` (Postgres + situação mock/estoque) | `api.py`, `lote_cache.py`, `lote_repository.py`, `db.py`, testes |
+| 56 | 2026-10-24 | API: lote completo no front + persistência postgres/json unificada | `api.py`, `lote_cache.py` |
+| 57 | 2026-10-24 | Fix upload 500: fallback JSON se Postgres indisponível | `api.py`, `.env.example` |
+| 58 | 2026-10-24 | Tabela: valor bruto; banner simulação/recusa; scroll interno ≈10 linhas | `notes-table.js`, `i18n.js`, `main.css`, `config.js` |
+| 59 | 2026-10-24 | Dashboard: melhor uso da largura (layout + painel mensal lado a lado) | `dashboard-resumo.js`, `main.css` |
+| 60 | 2026-10-24 | Dashboard: abas numeradas (sem setas) + linha separadora da tabela | `dashboard-resumo.js`, `main.css`, `i18n.js` |
+| 61 | 2026-10-24 | Aba financeira: KPIs + gráfico mensal (sem lista por mês) | `dashboard-resumo.js`, `main.css`, `i18n.js` |
+| 62 | 2026-10-24 | Resultados: 3 abas (financeiro / recusados / notas) + carrossel | `dashboard-resumo.js`, `main.css`, `index.html`, `main.js` |
+| 63 | 2026-10-24 | Filtro global por sacado (combobox, badges, recentes) | `dashboard-resumo.js`, `main.js`, `main.css`, `i18n.js` |
+| 64 | 2026-10-24 | Tabela modular (`notes-table-controller` + `notas-filtro`) | `notes-table-controller.js`, `lib/notas-filtro.js`, `main.js` |
+| 65 | 2026-10-24 | Aba Notas: scroll interno, sem fade cinematic na tabela | `main.css`, `index.html`, `cinematic-scroll.js`, `main.js` |
+| 66 | 2026-10-24 | Fix alinhamento de colunas após filtro vazio → linhas | `notes-table.js`, `main.css` |
+| 67 | 2026-10-24 | Coluna **Valor nominal** + banner simulação (−2%) | `nota-valores.js`, `notes-table.js`, `pipeline.py`, `i18n.js`, `mock_validacao.py` |
+| 68 | 2026-10-24 | Dashboard modular (3 abas em `dashboard/`) | `dashboard-resumo.js`, `dashboard/*`, `scripts/extract_*.py` |
+| 69 | 2026-10-24 | Carrossel horizontal no desktop; empilhado no mobile | `dashboard-shell.js`, `main.css` |
+| 70 | 2026-10-24 | Fix tela inicial (imports ES modules do dashboard) | `dashboard/*.js`, `index.html`, `main.js` |
+| 71 | 2026-10-24 | Tabela: viewport mínimo 10 linhas | `main.css`, `notes-table.js`, `config.js` |
+| 72 | 2026-10-24 | Aba Notas: mesma altura útil dos dashboards | `main.css`, `notes-table.js`, `main.js` |
+| 73 | 2026-10-24 | Aba Notas: scroll da página (Lenis), não trap interno | `main.css`, `cinematic-scroll.js`, `notes-table.js` |
+| 74 | 2026-10-24 | API: `valor_bruto`, pricing `clip`, no-cache JS estático | `api.py`, `pricing.py`, testes |
 
 ---
 
@@ -1068,3 +1092,481 @@ Refaça toda a tela inicial: título com opção de inserir arquivo logo abaixo;
 2. Validar → troca para tela de resultados (dashboard + tabela).
 3. **Novo lote** → volta à tela inicial.
 4. Transição **fade** (~520ms) entre início e resultados (`portal-screen-home` / `portal-screen-results` + opacidade).
+
+---
+
+## Entrada 51 — Identidade Kanastra na home e UX de upload (2026-10-24)
+
+### Prompt (resumo)
+
+Tela inicial alinhada à marca Kanastra; upload transparente; validação automática; toast em erro; resultados com coluna branca e fundo pattern com opacidade.
+
+### O que mudou
+
+- **`index.html`:** `.portal-app-bg` (pattern Kanastra); estrutura home vs `#portal-results-column`.
+- **`main.css`:** opacidade do pattern (home vs resultados), animação de fundo, tipografia branca na home, painéis de resultados em branco.
+- **`main.js`:** transição entre telas, toast via `lib/toast.js`, fluxo pós-validação.
+- **`upload-panel.js`:** área de arquivo e ícone de download; submit integrado ao fluxo de duas telas.
+- **Assets:** `docs/brand/kanastra/` e `app/static/img/brand/kanastra-pattern-reference_reference1-digital.png`.
+
+### Teste manual
+
+1. `/` → fundo pattern, texto claro, upload visível.
+2. CSV inválido → toast (sem alert nativo).
+3. Após validar → fundo mais suave; dashboard/tabela em coluna branca.
+
+---
+
+## Entrada 52 — Dashboard em carrossel (3 slides) (2026-10-24)
+
+### Prompt (resumo)
+
+Segundo dashboard mais compacto; botões do carrossel sem cobrir conteúdo; terceiro painel de erros por motivo de recusa.
+
+### O que mudou
+
+- **`dashboard-resumo.js`:** `DASHBOARD_SLIDE_COUNT = 3`; slides resumo (donut/bar/stats), mensal (linha + lista), erros (`agregarMotivosRecusa`, gráfico horizontal); navegação prev/next; ordem DOM `[prev][viewport][next]`.
+- **`main.css`:** track `300%`, slides `33,333%`, grid do carrossel.
+- **`i18n.js`:** chaves `dashboard.errors*`, rótulos genéricos de painel anterior/próximo.
+
+### Teste manual
+
+1. Validar lote → setas laterais alternam resumo → mensal → erros.
+2. Lote com recusas → gráfico de motivos; sem recusas → mensagem vazia.
+
+---
+
+## Entrada 53 — Ajustes visuais do carrossel (2026-10-24)
+
+### Prompt (resumo)
+
+Mais margem superior no carrossel; botões laterais com preenchimento transparente (área de clique maior, sem “caixa”).
+
+### O que mudou
+
+- **`main.css`:** `margin-top` no `.dashboard-carousel`; colunas `auto | 1fr | auto`; nav com `background: transparent`, padding nos botões; hover só reduz opacidade do ícone.
+
+### Notas
+
+- Tentativas de compactar horizontalmente o painel mensal e limitar largura do carrossel foram **revertidas** a pedido (escala vertical original do gráfico mensal).
+
+---
+
+## Entrada 54 — Dropdown de status e polish da tabela (2026-10-24)
+
+### Prompt (resumo)
+
+Filtro de status como dropdown entre pesquisa e datas; margens da tabela; scroll da tabela com roda do mouse (Lenis `prevent`).
+
+### O que mudou
+
+- **`notes-table.js`:** `<select>` de status na toolbar; `data-lenis-prevent` na área rolável.
+- **`cinematic-scroll.js`:** não captura wheel dentro da tabela.
+
+---
+
+## Entrada 55 — Merge back + front na `main` (2026-10-24)
+
+### Contexto
+
+`origin/main` (portal Kanastra) e `origin/feat/back` (Postgres, paginação server-side, `situacao_merge`) divergiram após `412793a`.
+
+### O que entrou do back (além do front já na main)
+
+- **`lote_repository.py`**, **`lote_paginacao.py`**, **`db.py`**, **`situacao_merge.py`**, **`cnpj_situacao_mock.csv`**, scripts de mescla, testes de DB/situação.
+- **`.env.example`:** `PERSISTENCIA_LOTE`, `CAMINHO_SITUACAO`, `DATABASE_URL`.
+
+### Conflitos resolvidos
+
+- **`app/api.py`**, **`app/lote_cache.py`:** ver Entradas 56–57.
+
+---
+
+## Entrada 56 — Contrato da API alinhado ao front (lote completo) (2026-10-24)
+
+### Decisão
+
+O front (`validacao.js`, `main.js`) continua esperando **todas as notas** no `POST /validar` e no `GET /validar/lote/{id}`; paginação permanece **no cliente**.
+
+### O que mudou
+
+- **`api.py`:** `salvar_lote(..., persistencia, database_url)`; resposta via `resposta_lote_completo` no POST; GET via `resposta_lote_completo_job`.
+- **`lote_cache.py`:** persistência postgres/json; mantém `resposta_pagina_*` para testes e uso interno; `resposta_lote_completo` + `resposta_lote_completo_job`.
+- **Boot:** schema Postgres quando disponível; `incorporar_sacados_do_csv` + `config.caminho_situacao`.
+
+---
+
+## Entrada 57 — Internal Server Error no upload local (2026-10-24)
+
+### Sintoma
+
+Com `PERSISTENCIA_LOTE=postgres` e sem Docker/Postgres, validação concluía e falhava ao **salvar lote** → HTTP 500.
+
+### Correção
+
+- **`api.py`:** `persistencia_lote_efetiva` — se Postgres configurado mas indisponível na subida, usa **JSON** em `data/lotes/`; rotas de validação usam a persistência efetiva.
+- **`.env.example`:** padrão `PERSISTENCIA_LOTE=json` para uvicorn local; comentário para usar `postgres` no Compose.
+
+### Teste manual
+
+1. Subir uvicorn sem DB → upload CSV → 200 e `job_id`.
+2. Log: `postgres_indisponivel_fallback_json`.
+
+---
+
+## Entrada 58 — Coluna valor bruto e banner por linha (2026-10-24)
+
+### Prompt (resumo)
+
+Coluna com valor **bruto** (nominal); ao clicar na linha, banner de **simulação de valor líquido** (aprovada) ou **motivo de recusa**; paginação 10/20/50; área rolável da tabela cabendo **~10 linhas** sem scroll (20/50 rolam dentro da tabela).
+
+### O que mudou
+
+- **`notes-table.js`:** `valorColuna` → sempre `valor_nominal`; banner com bloco `__lead` (título + hint) + valor ou motivo; estados aprovada/recusada/outros.
+- **`i18n.js`:** `table.value` = “Valor bruto”; `banner.simHint`, `banner.rejectHint`, etc.
+- **`main.css`:** estilos do banner (`__lead`, `__hint`); `--notes-table-scroll-max: calc(row-height × 10)`.
+- **`config.js`:** `TAMANHO_PAGINA = 10`, `TAMANHOS_PAGINA = [10, 20, 50]` (revertido teste com 9 itens por página).
+
+### Teste manual
+
+1. Página com 10 notas → sem barra de scroll no corpo da tabela.
+2. “Mostrar 20” → scroll interno aparece.
+3. Clicar nota aprovada → banner verde com valor líquido simulado; recusada → motivo.
+4. Coluna “Valor bruto” exibe nominal, não líquido.
+
+---
+
+## Entrada 59 — Dashboard ocupa melhor a área útil (2026-10-24)
+
+### Prompt (resumo)
+
+Continuar registro das mudanças; **usar melhor o espaço do dashboard** (largura da coluna de resultados, menos vazio).
+
+### O que mudou
+
+- **`main.css` — painel resumo (slide 1):** gráficos donut e barra em **duas colunas**; cards de totais (validadas/aprovadas/recusadas) em **faixa horizontal** abaixo (`grid-column: 1 / -1`), em vez de terceira coluna estreita vertical.
+- **`main.css` — alturas:** gráficos com `clamp(..., vh, ...)` para aproveitar viewport sem exagerar padding do `#dashboard-root` (padding reduzido).
+- **`dashboard-resumo.js` + `main.css` — slide mensal:** `dashboard-resumo__monthly-row` — gráfico de linha e lista de meses **lado a lado** a partir de 640px.
+- **Carrossel:** `margin-top` menor; viewport em largura total do painel; setas continuam centradas na vertical.
+
+### Teste manual
+
+1. Resultados em desktop → slide resumo: dois gráficos alinhados e KPIs em linha abaixo.
+2. Slide mensal → gráfico à esquerda, totais por mês à direita (scroll na lista se muitos meses).
+3. Slide erros → gráfico horizontal um pouco mais alto (`clamp`).
+
+---
+
+## Entrada 60 — Abas do dashboard e separador da tabela (2026-10-24)
+
+### Prompt (resumo)
+
+Linha horizontal discreta entre dashboard e tabela; trocar setas do carrossel por **abas com índice** no topo: (1) Resumo financeiro, (2) Resumo do lote, (3) Resumo de recusados.
+
+### O que mudou
+
+- **`dashboard-resumo.js`:** barra `role="tablist"` com botões numerados; painéis `tabpanel` (financeiro = mensal, lote = donut/bar/KPIs, recusados = erros); navegação por clique e setas ←/→ no foco; removidos botões ‹ ›.
+- **`main.css`:** estilos `.dashboard-tabs*`; track em modo abas (um painel visível); `#dashboard-root` com `border-bottom` slate-200; `#results-panel` sem gap extra entre blocos.
+- **`i18n.js`:** `dashboard.tabFinancial`, `tabBatch`, `tabRejected`, `tabsRegion`.
+
+### Teste manual
+
+1. Resultados → três abas no topo do dashboard; aba 1 abre gráfico mensal.
+2. Aba 2 → resumo do lote; aba 3 → motivos de recusa.
+3. Linha fina cinza entre dashboard e filtros/tabela.
+
+### Ajuste — carrossel com deslize por aba (2026-10-24)
+
+- **`dashboard-resumo.js` / `main.css`:** ao trocar aba, o track desliza com `translate3d` conforme o índice (0 → financeiro, 1 → lote, 2 → recusados); viewport com `overflow: hidden`.
+
+---
+
+## Entrada 61 — Resumo financeiro reorganizado (2026-10-24)
+
+### Prompt (resumo)
+
+Na aba **Resumo financeiro**: total a receber, variação mensal (só gráfico), sacado com maior volume, nota de maior líquido, totais bruto e líquido; remover lista de totais por mês.
+
+### O que mudou
+
+- **`calcularResumoFinanceiro`:** agrega aprovadas — bruto/líquido, top sacado (soma nominal), top nota (maior `valor_liquido`), total a receber (API ou soma líquida).
+- **`htmlSlideFinanceiro`:** grid de KPIs + destaques + gráfico de linha em largura total; lista `month-list` removida.
+- **`main.css`:** bloco `.dashboard-financeiro*`.
+- **`i18n.js`:** rótulos `dashboard.financial*`.
+
+### Teste manual
+
+1. Aba 1 → KPI verde “Total a receber”, bruto/líquido, cards sacado/nota, gráfico abaixo.
+2. Sem aprovadas → mensagem única de vazio.
+3. Aprovadas sem vencimento parseável → KPIs ok, gráfico com texto de vazio.
+
+---
+
+## Entrada 62 — Três abas no dashboard e tabela no carrossel (2026-10-24)
+
+### Prompt (resumo)
+
+Unificar navegação do resumo em abas (financeiro, recusados, notas); mover a tabela para o terceiro slide; manter `#table-root` remontado no mount do slide.
+
+### O que mudou
+
+- **`dashboard-resumo.js`:** `DASHBOARD_SLIDE_COUNT = 3`; slides financeiro, recusados e tabela (`#dashboard-table-mount`); `montarTabelaNoDashboard` + `guardarTableRootForaDoDashboard` antes de re-render (evita destruir `#table-root`).
+- **`main.js`:** `body.portal-results-tab-notes` ao slide 2; `renderizarDashboard` vs atualização só da tabela (ver Entrada 64).
+- **`main.css`:** layout flex do slide da tabela; abas com indicador deslizante.
+
+### Teste manual
+
+1. Validar lote → abas **Resumo financeiro**, **Resumo de recusados**, **Notas**.
+2. Aba Notas → tabela com filtros locais; trocar aba e voltar → tabela ainda montada.
+
+### Ajuste — manter aba ativa ao re-render (2026-10-24)
+
+- **`dashboardSlidePersistido`** + `capturarSlideAtualDashboard()` antes de limpar o DOM; `resetDashboardSlide()` só em novo lote / voltar ao início.
+- Filtro de sacado, idioma ou refresh do dashboard **não** voltam mais à aba 1.
+
+---
+
+## Entrada 63 — Filtro por sacado na barra de abas (2026-10-24)
+
+### Prompt (resumo)
+
+Campo à direita das abas; múltiplos sacados como badges; filtro aplicado **só ao escolher** opção (recentes ao focar, busca ao digitar); rótulos nos heróis **Total a receber** / **Total perdido** com nomes entre parênteses.
+
+### O que mudou
+
+- **`dashboard-resumo.js`:** combobox customizado (`sacado-combobox`), `sessionStorage` de recentes, evento `dashboard-sacados-changed`.
+- **`main.js`:** `loteAtual.sacadosFiltrados[]`; dashboard e tabela recebem subset filtrado.
+- **`lib/notas-filtro.js`:** `filtrarNotasPorSacado` (match exato, OR entre badges).
+- **`i18n.js`:** placeholders, recentes, limpar badge.
+
+### Teste manual
+
+1. Escolher sacado na lista → badges; gráficos e tabela restritos.
+2. Digitar sem selecionar → não aplica; Escolher da lista → aplica.
+3. Heróis mostram `(Sacado A, Sacado B)` quando filtrado.
+
+---
+
+## Entrada 64 — Controller da tabela (filtros locais) (2026-10-24)
+
+### Prompt (resumo)
+
+Filtros da toolbar (status, nota, datas, paginação) não devem re-renderizar o dashboard; modularizar estado da tabela.
+
+### O que mudou
+
+- **`notes-table-controller.js`:** estado próprio (`filtroStatus`, `buscaNota`, datas, paginação); callbacks internos; `applyLote`, `applySacadosGlobais`, `refresh`.
+- **`main.js`:** `renderizarDashboard()` + `sincronizarResultadosLote({ novoLote })`; evento sacado chama dashboard + `applySacadosGlobais`; removido flag `somenteTabela`.
+- **`lib/notas-filtro.js`:** `filtrarNotasConsultaTabela`, paginação local.
+
+### Teste manual
+
+1. Aba Notas → alterar status / busca / datas → dashboard (gráficos) **não** pisca.
+2. Alterar sacado na barra → dashboard **e** tabela atualizam.
+3. Novo lote → filtros da tabela resetam.
+
+---
+
+## Entrada 65 — Scroll vertical só na área de linhas (aba Notas) (2026-10-24)
+
+### Prompt (resumo)
+
+Tabela não expandir a página; `overflow: auto` no corpo; remover fade cinematic do `#table-root`.
+
+### O que mudou
+
+- **`main.css`:** cadeia flex `portal-results-tab-notes` com altura limitada a `100dvh`; `.notes-table-scroll` com `flex: 1`, `overflow: auto`.
+- **`index.html`:** removido `cinematic-reveal` de `#table-root`.
+- **`cinematic-scroll.js`:** observer ignora `#table-root` e slide da tabela.
+
+### Teste manual
+
+1. Aba Notas, muitas linhas → scroll **dentro** da tabela; paginação/filtros fixos acima/abaixo.
+2. Troca de aba → sem fade da tabela.
+
+---
+
+## Entrada 66 — Colunas após “nenhuma nota” (filtro vazio) (2026-10-24)
+
+### Prompt (resumo)
+
+Cenário: sacado sem recusadas → filtro **Recusadas** na tabela → voltar **Todas** → coluna Nota estourava horizontalmente.
+
+### Causa
+
+Linha vazia usa `<td colspan="5">`. O alinhamento media essa célula e gravava largura em px só na primeira coluna; ao voltar linhas normais, o `colgroup` ficava inconsistente.
+
+### O que mudou
+
+- **`notes-table.js`:** `limparLargurasColunasTabela`; com linha `.notes-table__empty` **não** fixa px (só CSS `%`); px só com 5 células no corpo; `agendarRealinhamentoColunas` com retry se `clientWidth === 0`; segundo passo quando modo `body`.
+- **`main.css`:** `.notes-table__cell--nota` com `ellipsis` + `max-width` de segurança.
+
+### Teste manual
+
+1. Sacado só aprovadas → filtro Recusadas (vazio) → Todas → colunas proporcionais (10% / 46% / …).
+2. Repetir após trocar sacado global e paginar.
+
+---
+
+## Entrada 67 — Valor nominal na tabela e simulação no banner (2026-10-24)
+
+### Prompt (resumo)
+
+Coluna deve mostrar valor **nominal/bruto**; ao clicar na linha, banner de simulação usa **nominal − 2%**; renomear rótulo para “Valor nominal”; corrigir cache de JS antigo.
+
+### O que mudou
+
+- **`lib/nota-valores.js`:** `formatValorNominalNota`, `formatValorLiquidoSimulado` (×0,98).
+- **`notes-table.js`:** coluna e banner usam helpers; cache-bust nos imports.
+- **`pipeline.py`:** campo `valor_bruto` (= `VALOR_NOMINAL`) na resposta.
+- **`i18n.js`:** `table.value`, `banner.simHint`.
+- **`mock_validacao.py`:** nota de exemplo alinhada.
+- **`api.py`:** middleware `_StaticNoCacheMiddleware` em `/static/js/` e `/static/css/`.
+- **`tests/test_api_validar.py`:** assert `valor_bruto == valor_nominal`.
+
+### Teste manual
+
+1. Upload CSV → coluna **Valor nominal** = nominal da nota aprovada.
+2. Clique em aprovada → banner ≈ 98% do nominal.
+3. Ctrl+F5 → comportamento mantido (sem JS velho).
+
+---
+
+## Entrada 68 — Dashboard modular em três abas (2026-10-24)
+
+### Prompt (resumo)
+
+Modularizar as 3 abas (financeiro, recusados, notas) para escalar; tabela com mais altura vertical; manter persistência da aba ativa.
+
+### O que mudou
+
+- **`app/static/js/components/dashboard/`:** `dashboard-data.js`, `dashboard-charts.js`, `dashboard-sacado-combobox.js`, `dashboard-shell.js`, `tab-financial.js`, `tab-rejected.js`, `tab-notes.js`.
+- **`dashboard-resumo.js`:** orquestrador fino (`renderDashboardResumo`, reexporta combobox/slide reset).
+- **`dashboard-shell.js`:** troca de abas, `dashboard-slide-changed`, classe `portal-results-tab-notes` na aba 2.
+- Backup local: `dashboard-resumo.js.bak` (não versionado).
+
+### Teste manual
+
+1. Validar lote → três abas renderizam KPIs/gráficos/tabela.
+2. Filtrar sacado → dashboard re-renderiza na **mesma aba**.
+3. **Novo lote** → volta à aba financeiro.
+
+---
+
+## Entrada 69 — Carrossel horizontal no desktop (2026-10-24)
+
+### Prompt (resumo)
+
+Continuar modelo visual de **carrossel horizontal** no desktop; mobile pode empilhar painéis.
+
+### O que mudou
+
+- **`dashboard-shell.js`:** `matchMedia (min-width: 768px)` — desktop usa `translate3d` no track; mobile oculta painéis inativos.
+- **`dashboard-resumo.js`:** DOM `dashboard-carousel__track.dashboard-views`.
+- **`main.css`:** media queries `.dashboard-views` (row vs column).
+
+### Teste manual
+
+1. Desktop → clicar abas desliza track horizontalmente.
+2. Reduzir janela &lt;768px → uma aba por vez, sem translate.
+
+---
+
+## Entrada 70 — Tela inicial / upload CSV (2026-10-24)
+
+### Prompt (resumo)
+
+“A página inicial sumiu com a opção de inserir csv”.
+
+### Causa
+
+Módulos em `dashboard/` importavam `../i18n.js` (pasta `components/`) em vez de `../../i18n.js` — falha ao carregar `main.js` → `mountUpload()` não executava.
+
+### O que mudou
+
+- Corrigidos imports em todos os arquivos de `dashboard/`.
+- Cache-bust em `main.js` no `index.html`.
+
+### Teste manual
+
+1. Abrir `/` → título + dropzone CSV visíveis.
+2. DevTools → sem 404 em `components/i18n.js`.
+
+---
+
+## Entrada 71 — Mínimo de 10 notas visíveis (2026-10-24)
+
+### Prompt (resumo)
+
+Expandir tabela para exibir **no mínimo 10 notas** sem rolagem interna (paginação padrão 10).
+
+### O que mudou
+
+- **`main.css`:** `--notes-table-row-height`, `--notes-table-scroll-max` (10 linhas); linhas com altura fixa; sacado em uma linha (ellipsis).
+- **`notes-table.js`:** `ajustarViewportScrollTabela` define `--notes-table-viewport-min`.
+
+### Teste manual
+
+1. Aba Notas, **Mostrar 10** → dez linhas cabem no viewport mínimo.
+2. **Mostrar 20** → scroll interno só se &gt;10 linhas na página (comportamento posterior ajustado na Entrada 73).
+
+---
+
+## Entrada 72 — Aba Notas com mesma área dos dashboards (2026-10-24)
+
+### Prompt (resumo)
+
+“A aba de tabela não está expandindo” — alinhar à altura útil de Financeiro/Recusados.
+
+### O que mudou
+
+- **`main.css`:** cadeia flex em `#results-panel`, `#dashboard-root`, slide `--table` / `.dashboard-view--notes`; `min-height: calc(100dvh - 13rem)` como nas outras abas.
+- **`main.js`:** ao entrar na aba Notas, `refresh()` da tabela + `resize`.
+
+### Teste manual
+
+1. Comparar altura do painel Notas vs Financeiro no mesmo viewport.
+2. Filtros + paginação permanecem visíveis abaixo do bloco da tabela.
+
+---
+
+## Entrada 73 — Scroll da página na aba Notas (2026-10-24)
+
+### Prompt (resumo)
+
+“O scroll é travado na tabela, ao contrário do resto”.
+
+### Causa
+
+Entrada 65 (`portal-results-tab-notes` + `100dvh` + `overflow: hidden`), Lenis `prevent` em `.notes-table-scroll`, e `overflow: auto` no corpo da tabela.
+
+### O que mudou
+
+- Removido trap `100dvh` da aba Notas; `#dashboard-root` e frame da tabela com `overflow: visible`.
+- **`cinematic-scroll.js`:** removido `prevent` do Lenis na tabela.
+- **`notes-table.js`:** removidos `data-lenis-prevent` e interceptação de `wheel`; corpo com `overflow-y: visible` (scroll da página).
+- **Nota:** substitui o comportamento da Entrada 65 para rolagem vertical global.
+
+### Teste manual
+
+1. Aba Notas → roda do mouse move a **página** (como Financeiro).
+2. Sem barra de scroll fina presa só no miolo da tabela (salvo overflow horizontal em telas estreitas).
+
+---
+
+## Entrada 74 — Backend: valor bruto e pricing (2026-10-24)
+
+### Prompt (resumo)
+
+Suporte à coluna nominal e testes de precificação quando vencimento &lt; data-base.
+
+### O que mudou
+
+- **`pricing.py`:** `prazo` com `clip(lower_bound=0)` para não inflar líquido acima do nominal.
+- **`pipeline.py`:** expõe `valor_bruto`.
+- **`tests/test_pricing.py`:** caso vencimento anterior à data-base.
+- **`.env.example`:** nota sobre `PERSISTENCIA_LOTE=json` sem Postgres.
+
+### Teste manual
+
+1. `pytest tests/test_pricing.py tests/test_api_validar.py -q`.

@@ -27,7 +27,13 @@ def calcular_valor_liquido(
     data_base_lit = pl.lit(data_base, dtype=pl.Date)
 
     prazo_dias = (pl.col("DATA_VENCIMENTO_ORIGINAL") - data_base_lit).dt.total_days()
-    desconto = pl.col("VALOR_NOMINAL") * (taxa / 100.0) * (prazo_dias / float(base_dias))
+    # Só desconta dias futuros; vencimento já passou na data-base → líquido = nominal (nunca > bruto).
+    prazo_antecipacao = prazo_dias.clip(lower_bound=0)
+    desconto = (
+        pl.col("VALOR_NOMINAL")
+        * (taxa / 100.0)
+        * (prazo_antecipacao / float(base_dias))
+    )
     liquido = (pl.col("VALOR_NOMINAL") - desconto).round(2)
 
     if "aprovada" not in df.columns:

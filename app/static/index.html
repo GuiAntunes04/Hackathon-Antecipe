@@ -27,8 +27,6 @@
         "grid",
         "grid-cols-12",
         "col-span-12",
-        "lg:col-span-8",
-        "lg:col-start-3",
         "px-4",
         "lg:px-0",
         "empty:hidden",
@@ -66,7 +64,7 @@
     <!-- Tela 2: dashboard + tabela -->
     <section id="portal-results" class="portal-results" aria-hidden="true" aria-label="Resultados">
       <header class="portal-results-header">
-        <div class="portal-results-header__inner mx-auto w-full max-w-screen-2xl px-4 lg:px-8 xl:px-10">
+        <div class="portal-results-header__inner portal-results__inset mx-auto w-full max-w-screen-2xl">
           <button type="button" id="btn-novo-lote" class="portal-results-header__back"></button>
           <div class="portal-results-header__brand">
             <img
@@ -80,19 +78,20 @@
           </div>
         </div>
       </header>
-      <div class="portal-results__body mx-auto w-full max-w-screen-2xl px-0 pb-3 lg:px-8 xl:px-10">
-        <div class="grid grid-cols-12 gap-x-0 lg:gap-x-6">
-          <div class="portal-results-column col-span-12 lg:col-span-8 lg:col-start-3">
+      <div class="portal-results__body portal-results__inset mx-auto w-full max-w-screen-2xl pb-3">
+        <div class="grid grid-cols-12 gap-x-0">
+          <div class="portal-results-column col-span-12">
             <div id="results-panel" class="portal-results-panel">
               <section
                 id="dashboard-root"
                 class="dashboard-resumo panel panel--full-bleed-mobile cinematic-scene cinematic-reveal"
                 aria-live="polite"
               ></section>
-              <section
+              <div
                 id="table-root"
-                class="panel panel--full-bleed-mobile cinematic-scene cinematic-reveal"
-              ></section>
+                class="panel panel--full-bleed-mobile hidden"
+                hidden
+              ></div>
             </div>
           </div>
         </div>
@@ -100,8 +99,8 @@
     </section>
   </main>
 
-  <link href="/static/css/main.css" rel="stylesheet" />
+  <link href="/static/css/main.css?v=20261024k" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/static/js/main.js"></script>
+  <script type="module" src="/static/js/main.js?v=20261024h"></script>
 </body>
 </html>

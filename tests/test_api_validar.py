@@ -29,3 +29,4 @@ def test_post_validar_csv(monkeypatch) -> None:
     assert primeira.get("nome_sacado")
     assert primeira.get("data_vencimento")
     assert primeira.get("valor_nominal") is not None
+    assert primeira.get("valor_bruto") == primeira.get("valor_nominal")

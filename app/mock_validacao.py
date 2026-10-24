@@ -42,10 +42,10 @@ def _notas_fixas() -> list[dict[str, Any]]:
             "nu_documento": "286288",
             "nome_sacado": "ESCOLA SANTA MARIA LTDA",
             "data_vencimento": "11/10/2026",
-            "valor_nominal": 192.14,
+            "valor_nominal": 3200.75,
             "status": "aprovada",
             "motivo": "",
-            "valor_liquido": 3200.75,
+            "valor_liquido": 2960.50,
         },
         {
             "linha": 5,

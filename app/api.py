@@ -11,8 +11,10 @@ import structlog
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
-from app.config import carregar_config
+from app.config import PersistenciaLote, carregar_config
 from app import db
 from app.logging_setup import configurar_logging
 from app import lote_cache, pipeline
@@ -25,6 +27,15 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 DATA_DIR = Path("data")
 
 
+def persistencia_lote_efetiva(app: FastAPI) -> PersistenciaLote:
+    """Postgres configurado sem DB acessível → grava em JSON local."""
+    return getattr(
+        app.state,
+        "persistencia_lote_efetiva",
+        app.state.config.persistencia_lote,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Inicializa config e logging na subida da aplicação."""
@@ -33,6 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.config = config
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+    persistencia_efetiva: PersistenciaLote = config.persistencia_lote
     if config.persistencia_lote == "json":
         lote_cache.garantir_diretorio()
     elif db.verificar_conexao(config.database_url):
@@ -40,7 +52,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             db.init_schema(conn)
         logger.info("postgres_schema_ok")
     else:
-        logger.warning("postgres_indisponivel", persistencia=config.persistencia_lote)
+        logger.warning(
+            "postgres_indisponivel_fallback_json",
+            configurado=config.persistencia_lote,
+        )
+        persistencia_efetiva = "json"
+        lote_cache.garantir_diretorio()
+    app.state.persistencia_lote_efetiva = persistencia_efetiva
 
     if not config.caminho_situacao.is_file():
         garantir_arquivo_situacao(saida=config.caminho_situacao)
@@ -60,6 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         caminho_situacao=str(config.caminho_situacao),
         mock_validacao=config.mock_validacao,
         persistencia_lote=config.persistencia_lote,
+        persistencia_lote_efetiva=persistencia_efetiva,
     )
     yield
 
@@ -69,6 +88,20 @@ app = FastAPI(
     description="Validação de recebíveis contra regras configuráveis",
     lifespan=lifespan,
 )
+
+
+class _StaticNoCacheMiddleware(BaseHTTPMiddleware):
+    """Evita JS/CSS antigo em cache (módulos ES importam outros arquivos)."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/static/js/") or path.startswith("/static/css/"):
+            response.headers["Cache-Control"] = "no-store, must-revalidate"
+        return response
+
+
+app.add_middleware(_StaticNoCacheMiddleware)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -135,7 +168,7 @@ async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
         job_id = lote_cache.salvar_lote(
             resultado,
             database_url=config.database_url,
-            persistencia=config.persistencia_lote,
+            persistencia=persistencia_lote_efetiva(app),
             nome_arquivo=nome_seguro,
         )
         resposta = lote_cache.resposta_lote_completo(resultado, job_id)
@@ -162,7 +195,7 @@ def validar_lote(job_id: str) -> JSONResponse:
         resposta = lote_cache.resposta_lote_completo_job(
             job_id,
             database_url=config.database_url,
-            persistencia=config.persistencia_lote,
+            persistencia=persistencia_lote_efetiva(app),
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
