@@ -21,23 +21,20 @@ def test_resultado_simulado_tem_dez_notas() -> None:
     assert dados["total_a_receber"] == total_esperado
 
 
-def test_get_index_nao_inclui_demo_no_html(monkeypatch) -> None:
-    monkeypatch.setenv("MOCK_VALIDACAO", "true")
+def test_get_index_html() -> None:
     with TestClient(app) as client:
         resposta = client.get("/")
     assert resposta.status_code == 200
     assert "antecipe-demo-data" not in resposta.text
 
 
-def test_get_validar_demo_descontinuado(monkeypatch) -> None:
-    monkeypatch.setenv("MOCK_VALIDACAO", "false")
+def test_get_validar_demo_descontinuado() -> None:
     with TestClient(app) as client:
         resposta = client.get("/validar/demo")
     assert resposta.status_code == 404
 
 
-def test_post_validar_usa_pipeline(monkeypatch) -> None:
-    monkeypatch.setenv("MOCK_VALIDACAO", "true")
+def test_post_validar_usa_pipeline() -> None:
     fixture = (
         Path(__file__).resolve().parent / "fixtures" / "notas_exemplo.csv"
     ).read_bytes()

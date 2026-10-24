@@ -1,4 +1,4 @@
-import { URL_VALIDAR, URL_VALIDAR_DEMO, urlValidarLote } from "../config.js";
+import { URL_VALIDAR, urlValidarLote } from "../config.js";
 
 /**
  * @param {string} body
@@ -47,15 +47,5 @@ export async function postValidar(file) {
  */
 export async function getValidarLote(jobId) {
   const resp = await fetch(urlValidarLote(jobId));
-  return parseJsonOuErro(resp, resp.statusText);
-}
-
-/**
- * Lote de demonstração (disponível quando o servidor está com MOCK_VALIDACAO).
- * @returns {Promise<{ total_a_receber?: number, notas?: Array<object> } | null>}
- */
-export async function getValidacaoDemo() {
-  const resp = await fetch(URL_VALIDAR_DEMO);
-  if (resp.status === 404) return null;
   return parseJsonOuErro(resp, resp.statusText);
 }

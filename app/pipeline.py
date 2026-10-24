@@ -12,7 +12,7 @@ from typing import Any
 import polars as pl
 import structlog
 
-from app.config import _parse_bool, caminho_gabarito_opcional
+from app.config import _parse_bool
 from app.gabarito import carregar_gabarito, gabarito_aplicavel
 from app.pricing import calcular_valor_liquido
 from app.reader import ler_csv_notas
@@ -170,12 +170,11 @@ def validar_arquivo_csv(
     df = df.with_row_index("_idx").with_columns((pl.col("_idx") + 2).alias("linha"))
 
     gabarito = None
-    caminho_gab = caminho_gabarito if caminho_gabarito is not None else caminho_gabarito_opcional()
-    if caminho_gab is not None:
+    if caminho_gabarito is not None:
         try:
-            gabarito = carregar_gabarito(caminho_gab)
+            gabarito = carregar_gabarito(caminho_gabarito)
         except (FileNotFoundError, ValueError, json.JSONDecodeError):
-            logger.warning("gabarito_ignorado", caminho=str(caminho_gab))
+            logger.warning("gabarito_ignorado", caminho=str(caminho_gabarito))
 
     usa_gabarito = gabarito is not None and gabarito_aplicavel(df, gabarito)
 
@@ -201,7 +200,7 @@ def validar_arquivo_csv(
     aprovadas = int(df.filter(pl.col("aprovada")).height)
     recusadas = len(notas) - aprovadas
     total_receber = round(
-        sum(n["valor_liquido"] or 0.0 for n in notas if n["status"] == "aprovada"),
+        float(df.filter(pl.col("aprovada")).select(pl.col("valor_liquido").sum()).item() or 0.0),
         2,
     )
 

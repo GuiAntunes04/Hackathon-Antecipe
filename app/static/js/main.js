@@ -244,7 +244,7 @@ function obterTabelaNotas() {
   return tabelaNotas;
 }
 
-function renderizarDashboard() {
+async function renderizarDashboard() {
   const focusSacado =
     document.activeElement instanceof HTMLInputElement &&
     document.activeElement.id === "dashboard-busca-sacado";
@@ -258,7 +258,7 @@ function renderizarDashboard() {
   const sacadoAtivo = loteAtual.sacadosFiltrados.length > 0;
 
   if (dashboardRoot) {
-    renderDashboardResumo(dashboardRoot, {
+    await renderDashboardResumo(dashboardRoot, {
       total_a_receber: sacadoAtivo ? null : loteAtual.totalAReceber,
       resumo: sacadoAtivo ? resumoLocalDasNotas(notasDashboard) : loteAtual.resumo,
       notas: notasDashboard,
@@ -295,7 +295,7 @@ function sincronizarResultadosLote(opts = {}) {
     tabelaNotas?.reset();
     tabelaNotas = null;
   }
-  renderizarDashboard();
+  void renderizarDashboard();
   const ctrl = obterTabelaNotas();
   if (!ctrl) return;
   if (opts.carregando) ctrl.setCarregando(true);
@@ -365,7 +365,7 @@ onLocaleChange(() => {
   mountUpload();
   refreshStatusMessage();
   if (loteAtual.jobId) {
-    renderizarDashboard();
+    void renderizarDashboard();
     obterTabelaNotas()?.refresh();
   }
 });
@@ -394,7 +394,7 @@ if (dashboardRoot) {
     loteAtual.sacadosFiltrados = sacados
       .map((s) => String(s).trim())
       .filter(Boolean);
-    renderizarDashboard();
+    void renderizarDashboard();
     obterTabelaNotas()?.applySacadosGlobais(loteAtual.sacadosFiltrados);
   });
 }

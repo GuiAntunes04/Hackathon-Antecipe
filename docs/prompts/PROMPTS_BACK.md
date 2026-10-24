@@ -219,3 +219,60 @@ Utilize apenas o mock, sem mesclar.
 - `POST /validar` usa o mock direto (sem CSV temporário de mescla).
 - `garantir_arquivo_situacao` não gera mais `data/situacao_sacados.csv` a partir do estoque.
 - `.env.example`, `docker-compose.yml`, `README.md` atualizados.
+
+---
+
+## Entrada 15 — Limpeza final e docs (2026-10-24)
+
+### Prompt
+
+Remover código morto, otimizar sem gabarito em runtime; README e PROMPTS conforme edital.
+
+### O que foi gerado
+
+- Gabarito só via `caminho_gabarito=` nos testes; removido de `config`, API e Docker.
+- Removidos merge/upload legado em `situacao_sacados.py`, demo JS, scripts `extract_*` / `split_dashboard`.
+- `total_a_receber` via soma Polars; `docs/prompts/PROMPTS.md` índice; README alinhado à API real.
+
+---
+
+## Entrada 16 — Sem gabarito em produção (2026-10-24)
+
+### Prompt
+
+Não vou utilizar o gabarito mesmo.
+
+### O que foi gerado
+
+- Removido `CAMINHO_GABARITO` de `config`, `api`, `docker-compose`, `.env.example`.
+- README: motor = JSON + mock + concentração heurística; divergência do `resultado_esperado_100k.json` é esperada.
+- `app/gabarito.py` e `pytest -m slow` permanecem só para regressão opcional (parâmetro explícito no pipeline).
+
+---
+
+## Entrada 17 — Performance de abertura e persistência (2026-10-24)
+
+### Prompt
+
+Faça as alterações (localhost lento, import CSV).
+
+### O que foi gerado
+
+- `index.html`: Tailwind buildado (`tailwind.css`); Chart.js removido do carregamento inicial.
+- `app/static/js/lib/chart-loader.js`: Chart sob demanda no dashboard.
+- `main.css`: fundo `hero-mountains.png` (~260 KB) no lugar do pattern Kanastra (~3 MB).
+- `api.py`: cache `max-age` em `/static/img/` e `tailwind.css`.
+- `docker-compose.yml`: `PERSISTENCIA_LOTE=postgres`; Postgres só em `127.0.0.1:5432`.
+
+---
+
+## Entrada 18 — Prompts em `docs/prompts/` (2026-10-24)
+
+### Prompt
+
+Insira os prompts em uma pasta.
+
+### O que foi gerado
+
+- `PROMPTS.md`, `PROMPTS_BACK.md`, `PROMPTS_FRONT.md`, `PROMPTS_MERGE.md` → `docs/prompts/`.
+- `PROMPTS.md` na raiz aponta para o índice; `README.md` atualizado.

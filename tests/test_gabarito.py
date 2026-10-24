@@ -22,12 +22,7 @@ def test_gabarito_linhas_chave() -> None:
         pytest.skip("Arquivos de gabarito ou estoque ausentes")
 
     gab = {x["linha"]: x for x in json.loads(GABARITO.read_text(encoding="utf-8"))}
-    env = {
-        "DUPLICIDADE_LOTE": "false",
-        "CAMINHO_GABARITO": str(GABARITO.resolve()),
-    }
-    for chave, valor in env.items():
-        os.environ[chave] = valor
+    os.environ["DUPLICIDADE_LOTE"] = "false"
     try:
         out = validar_arquivo_csv(
             ESTOQUE,
@@ -36,8 +31,7 @@ def test_gabarito_linhas_chave() -> None:
             caminho_gabarito=GABARITO,
         )
     finally:
-        for chave in env:
-            os.environ.pop(chave, None)
+        os.environ.pop("DUPLICIDADE_LOTE", None)
 
     by_linha = {n["linha"]: n for n in out["notas"]}
 

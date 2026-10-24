@@ -76,8 +76,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         data_base=config.data_base.isoformat(),
         caminho_validadores=str(config.caminho_validadores),
         caminho_situacao=str(config.caminho_situacao),
-        caminho_gabarito=str(config.caminho_gabarito) if config.caminho_gabarito else None,
-        mock_validacao=config.mock_validacao,
         persistencia_lote=config.persistencia_lote,
         persistencia_lote_efetiva=persistencia_efetiva,
     )
@@ -91,18 +89,20 @@ app = FastAPI(
 )
 
 
-class _StaticNoCacheMiddleware(BaseHTTPMiddleware):
-    """Evita JS/CSS antigo em cache (módulos ES importam outros arquivos)."""
+class _StaticCacheMiddleware(BaseHTTPMiddleware):
+    """Cache longo em assets versionados; JS modular sem cache agressivo em dev."""
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         path = request.url.path
-        if path.startswith("/static/js/") or path.startswith("/static/css/"):
+        if path.startswith("/static/img/") or "tailwind.css" in path:
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        elif path.startswith("/static/js/") or path.startswith("/static/css/"):
             response.headers["Cache-Control"] = "no-store, must-revalidate"
         return response
 
 
-app.add_middleware(_StaticNoCacheMiddleware)
+app.add_middleware(_StaticCacheMiddleware)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -166,7 +166,6 @@ async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
             caminho_validadores=config.caminho_validadores,
             data_base=config.data_base,
             caminho_situacao=config.caminho_situacao,
-            caminho_gabarito=config.caminho_gabarito,
         )
         job_id = lote_cache.salvar_lote(
             resultado,
