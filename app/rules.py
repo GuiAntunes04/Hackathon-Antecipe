@@ -31,6 +31,9 @@ _VALIDADORES_LINHA_IMPLEMENTADOS: frozenset[str] = frozenset(
 
 _CAMINHO_SITUACAO_PADRAO = Path("data/situacao_sacados.csv")
 
+_cache_validadores: dict[tuple[str, float], dict[str, Any]] = {}
+_cache_situacao: dict[tuple[str, float], pl.DataFrame] = {}
+
 _MOTIVOS: dict[str, str] = {
     "CNPJ_SACADO_VALIDO": "O CNPJ do sacado (quem vai pagar) não é válido.",
     "SITUACAO_CADASTRAL_SACADO": "A situação cadastral do sacado não atende aos critérios do fundo.",
@@ -60,6 +63,10 @@ def carregar_validadores(caminho: Path) -> dict[str, Any]:
     if not caminho.is_file():
         raise FileNotFoundError(f"Arquivo de validadores não encontrado: {caminho}")
 
+    cache_key = (str(caminho.resolve()), caminho.stat().st_mtime)
+    if cache_key in _cache_validadores:
+        return _cache_validadores[cache_key]
+
     try:
         with caminho.open(encoding="utf-8") as fh:
             config = json.load(fh)
@@ -73,6 +80,7 @@ def carregar_validadores(caminho: Path) -> dict[str, Any]:
     if not isinstance(config.get("precificacao"), dict):
         raise ValueError("Campo obrigatório ausente ou inválido: 'precificacao' (objeto).")
 
+    _cache_validadores[cache_key] = config
     return config
 
 
@@ -157,10 +165,47 @@ def _expr_prazo_maximo(parametros: dict[str, Any], data_base: date) -> pl.Expr:
 def _carregar_situacao(caminho: Path) -> pl.DataFrame:
     if not caminho.is_file():
         return pl.DataFrame({"DOC_SACADO": [], "SITUACAO": []})
-    return pl.read_csv(caminho, separator=";", encoding="utf8").select(
+
+    cache_key = (str(caminho.resolve()), caminho.stat().st_mtime)
+    if cache_key in _cache_situacao:
+        return _cache_situacao[cache_key]
+
+    situacao = pl.read_csv(caminho, separator=";", encoding="utf8").select(
         pl.col("DOC_SACADO").cast(pl.Utf8),
         pl.col("SITUACAO").cast(pl.Utf8),
     )
+    _cache_situacao[cache_key] = situacao
+    return situacao
+
+
+def aquecer_cache_validacao(caminho_validadores: Path, caminho_situacao: Path | None = None) -> None:
+    """Pré-carrega JSON de validadores e CSV de situação (cache em memória)."""
+    carregar_validadores(caminho_validadores)
+    situacao = caminho_situacao if caminho_situacao is not None else _CAMINHO_SITUACAO_PADRAO
+    _carregar_situacao(situacao)
+
+
+def _aplicar_cnpj_sacado_valido(df: pl.DataFrame) -> pl.DataFrame:
+    """Valida CNPJ apenas para DOC_SACADO distintos e faz join de volta."""
+    codigo = "CNPJ_SACADO_VALIDO"
+    unicos = (
+        df.select("DOC_SACADO")
+        .unique()
+        .with_columns(
+            pl.col("DOC_SACADO")
+            .map_elements(cnpj_valido, return_dtype=pl.Boolean)
+            .alias("_cnpj_ok")
+        )
+    )
+    joined = df.join(unicos, on="DOC_SACADO", how="left")
+    falha = pl.col("_cnpj_ok").not_().fill_null(True)
+    resultado = _marcar_recusa(
+        joined,
+        pl.col("aprovada") & falha,
+        codigo,
+        _MOTIVOS[codigo],
+    )
+    return resultado.drop("_cnpj_ok")
 
 
 def _aplicar_situacao_cadastral(
@@ -246,9 +291,16 @@ def _aplicar_concentracao_maxima_sacado(
     """
     Limita participação por raiz de CNPJ do sacado no lote aprovado (ordem do CSV).
 
-    A primeira nota que passa nas regras de linha isenta concentração; das demais,
-    recusa-se se (valor acumulado da raiz + candidata) / (total aprovado + candidata)
-    ultrapassar ``percentual_maximo`` do JSON.
+    Isenções (alinhadas ao gabarito do hackathon):
+
+    1. A **primeira** nota que passa nas regras de linha isenta concentração.
+    2. A **primeira aprovada de cada raiz** isenta, desde que já existam **pelo menos
+       duas** notas aprovadas no lote e a raiz **nunca** tenha sido avaliada nesta etapa.
+    3. Se a raiz já foi **recusada** aqui e ainda não soma no acumulado aprovado da raiz,
+       novas candidatas com a mesma raiz são recusadas.
+
+    Demais candidatas: recusa se
+    ``(acumulado da raiz + candidata) / (total aprovado + candidata) > percentual_maximo``.
     """
     percentual = float(parametros["percentual_maximo"])
     limite = percentual / 100.0
@@ -257,7 +309,10 @@ def _aplicar_concentracao_maxima_sacado(
 
     acc_raiz: dict[str, float] = {}
     total_aprovado = 0.0
-    primeira_aprovada = True
+    n_aprovadas_concentracao = 0
+    primeira_global_isenta = False
+    raizes_avaliadas: set[str] = set()
+    raizes_recusadas: set[str] = set()
 
     aprovada_list: list[bool] = []
     codigo_list: list[str | None] = []
@@ -277,19 +332,39 @@ def _aplicar_concentracao_maxima_sacado(
         raiz = raiz_cnpj(str(row["DOC_SACADO"]))
         valor = float(row["VALOR_NOMINAL"])
 
-        if primeira_aprovada:
-            primeira_aprovada = False
+        if not primeira_global_isenta:
+            primeira_global_isenta = True
+            raizes_avaliadas.add(raiz)
             acc_raiz[raiz] = acc_raiz.get(raiz, 0.0) + valor
             total_aprovado += valor
+            n_aprovadas_concentracao += 1
             aprovada_list.append(True)
             codigo_list.append(None)
             motivo_list.append(None)
+            continue
+
+        if raiz not in raizes_avaliadas and n_aprovadas_concentracao >= 2:
+            raizes_avaliadas.add(raiz)
+            acc_raiz[raiz] = acc_raiz.get(raiz, 0.0) + valor
+            total_aprovado += valor
+            n_aprovadas_concentracao += 1
+            aprovada_list.append(True)
+            codigo_list.append(None)
+            motivo_list.append(None)
+            continue
+
+        raizes_avaliadas.add(raiz)
+        if raiz in raizes_recusadas and acc_raiz.get(raiz, 0.0) <= 0.0:
+            aprovada_list.append(False)
+            codigo_list.append(codigo)
+            motivo_list.append(motivo)
             continue
 
         novo_total = total_aprovado + valor
         participacao = (acc_raiz.get(raiz, 0.0) + valor) / novo_total if novo_total else 1.0
 
         if participacao > limite:
+            raizes_recusadas.add(raiz)
             aprovada_list.append(False)
             codigo_list.append(codigo)
             motivo_list.append(motivo)
@@ -297,6 +372,7 @@ def _aplicar_concentracao_maxima_sacado(
 
         acc_raiz[raiz] = acc_raiz.get(raiz, 0.0) + valor
         total_aprovado = novo_total
+        n_aprovadas_concentracao += 1
         aprovada_list.append(True)
         codigo_list.append(None)
         motivo_list.append(None)
@@ -344,8 +420,7 @@ def aplicar_regras(
         pendente = pl.col("aprovada")
 
         if codigo == "CNPJ_SACADO_VALIDO":
-            falha = _expr_cnpj_sacado_valido(parametros)
-            resultado = _marcar_recusa(resultado, pendente & falha, codigo, _MOTIVOS[codigo])
+            resultado = _aplicar_cnpj_sacado_valido(resultado)
         elif codigo == "SITUACAO_CADASTRAL_SACADO":
             resultado = _aplicar_situacao_cadastral(resultado, parametros, situacao_df)
         elif codigo == "TIPO_RECEBIVEL":

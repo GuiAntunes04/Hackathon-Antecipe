@@ -87,3 +87,54 @@ Corrigir `POST /validar` após merge com front (gravar upload em temp UUID, erro
 - `.env.example`: `MOCK_VALIDACAO=false`.
 - `tests/test_api_validar.py`: monkeypatch mock off + asserts de campos da UI.
 - `README.md`: variável `MOCK_VALIDACAO` e fluxo de upload temporário.
+
+---
+
+## Entrada 6 — Duplicidade: valor na chave + flag (2026-10-24)
+
+### Prompt
+
+Chave de duplicidade `(DOC_CEDENTE, NU_DOCUMENTO, VALOR_NOMINAL)`; `DUPLICIDADE_LOTE` opcional; testes e doc.
+
+### O que foi gerado
+
+- `app/pipeline.py`: `_chave_duplicidade_lote`, `_duplicidade_lote_habilitada()`; docstring atualizada.
+- `.env.example`: `DUPLICIDADE_LOTE=true`.
+- `tests/test_duplicidade_lote.py`: valores distintos vs chave tripla repetida.
+- `README.md`: regra de duplicidade e variável de ambiente.
+
+---
+
+## Entrada 7 — Concentração alinhada ao gabarito (2026-10-24)
+
+### Prompt
+
+Ajustar `CONCENTRACAO_MAXIMA_SACADO`: 1ª global + 1ª por raiz (com ≥2 aprovadas no lote); corrigir casos como linha 6 (`725723`).
+
+### O que foi gerado
+
+- `app/rules.py`: `_aplicar_concentracao_maxima_sacado` com isenção híbrida.
+- `README.md`: texto de concentração atualizado.
+
+---
+
+## Entrada 8 — Concentração: raiz já recusada (2026-10-24)
+
+### O que foi gerado
+
+- `app/rules.py`: `raizes_avaliadas` (isenção 1ª por raiz) + `raizes_recusadas` (bloqueia novas candidatas da mesma raiz enquanto `acc_raiz` da raiz for zero — linhas 17 e 36 após recusa na 3).
+- Teste unitário em `tests/test_rules.py`.
+
+---
+
+## Entrada 9 — Performance da validação (2026-10-24)
+
+### Prompt
+
+Otimizar o pipeline de validação (~100k linhas) sem alterar regras de negócio: eliminar loops Python em duplicidade, estoque e montagem do JSON; validar CNPJ só em sacados distintos; cache de validadores/situação/estoque; aquecer cache no startup da API.
+
+### O que foi gerado
+
+- `app/pipeline.py`: duplicidade via `struct` + `cum_count().over()`; estoque via `join`; `_montar_notas()` com `to_dicts()`; cache de chaves do estoque por `mtime`.
+- `app/rules.py`: cache de `carregar_validadores` e `_carregar_situacao`; `_aplicar_cnpj_sacado_valido` (join em únicos); `aquecer_cache_validacao()`.
+- `app/api.py`: pré-carga no `lifespan`.

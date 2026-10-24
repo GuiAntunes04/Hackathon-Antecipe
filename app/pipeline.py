@@ -11,19 +11,18 @@ from typing import Any
 import polars as pl
 import structlog
 
+from app.config import _parse_bool
 from app.pricing import calcular_valor_liquido
 from app.reader import ler_csv_notas
 from app.rules import aplicar_regras, carregar_validadores
 
 logger = structlog.get_logger(__name__)
 
+_cache_chaves_estoque: dict[str, tuple[float, frozenset[tuple[str, str]]]] = {}
 
-def _formatar_data_vencimento(valor: Any) -> str | None:
-    if valor is None:
-        return None
-    if hasattr(valor, "strftime"):
-        return valor.strftime("%d/%m/%Y")
-    return str(valor)
+
+def _duplicidade_lote_habilitada() -> bool:
+    return _parse_bool(os.getenv("DUPLICIDADE_LOTE"), default=True)
 
 
 def _caminho_estoque() -> Path | None:
@@ -35,27 +34,38 @@ def _caminho_estoque() -> Path | None:
 
 
 def _carregar_chaves_estoque(caminho: Path) -> frozenset[tuple[str, str]]:
+    key = str(caminho.resolve())
+    mtime = caminho.stat().st_mtime
+    cached = _cache_chaves_estoque.get(key)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+
     df = ler_csv_notas(caminho)
     pares = df.select("DOC_CEDENTE", "NU_DOCUMENTO").unique()
-    return frozenset(
-        (row["DOC_CEDENTE"], row["NU_DOCUMENTO"])
-        for row in pares.iter_rows(named=True)
+    chaves = frozenset(zip(pares["DOC_CEDENTE"], pares["NU_DOCUMENTO"], strict=True))
+    _cache_chaves_estoque[key] = (mtime, chaves)
+    return chaves
+
+
+def _expr_chave_duplicidade_lote() -> pl.Expr:
+    return pl.struct(
+        pl.col("DOC_CEDENTE"),
+        pl.col("NU_DOCUMENTO"),
+        pl.col("VALOR_NOMINAL").round(2),
     )
 
 
 def _marcar_duplicidade_lote(df: pl.DataFrame) -> pl.DataFrame:
-    """Recusa ocorrências repetidas de (DOC_CEDENTE, NU_DOCUMENTO) no mesmo envio."""
-    chave = pl.concat_str([pl.col("DOC_CEDENTE"), pl.lit("|"), pl.col("NU_DOCUMENTO")])
-    vistos: set[str] = set()
-    duplicada: list[bool] = []
-    for row in df.iter_rows(named=True):
-        k = f"{row['DOC_CEDENTE']}|{row['NU_DOCUMENTO']}"
-        if k in vistos:
-            duplicada.append(True)
-        else:
-            vistos.add(k)
-            duplicada.append(False)
-    return df.with_columns(pl.Series("_dup_lote", duplicada)).with_columns(
+    """
+    Recusa 2ª+ ocorrência da mesma chave no envio (ordem do CSV).
+
+    Chave: (DOC_CEDENTE, NU_DOCUMENTO, VALOR_NOMINAL arredondado a 2 casas).
+    Só altera linhas ainda aprovadas.
+    """
+    df = df.with_columns(_expr_chave_duplicidade_lote().alias("_chave_dup")).with_columns(
+        (pl.col("_chave_dup").cum_count().over("_chave_dup") > 1).alias("_dup_lote")
+    )
+    return df.with_columns(
         pl.when(pl.col("_dup_lote") & pl.col("aprovada"))
         .then(pl.lit(False))
         .otherwise(pl.col("aprovada"))
@@ -68,15 +78,22 @@ def _marcar_duplicidade_lote(df: pl.DataFrame) -> pl.DataFrame:
         .then(pl.lit("Esta nota já aparece neste envio."))
         .otherwise(pl.col("motivo_recusa"))
         .alias("motivo_recusa"),
-    ).drop("_dup_lote")
+    ).drop("_chave_dup", "_dup_lote")
 
 
 def _marcar_ja_no_estoque(df: pl.DataFrame, chaves: frozenset[tuple[str, str]]) -> pl.DataFrame:
-    def no_estoque(row: dict[str, Any]) -> bool:
-        return (row["DOC_CEDENTE"], row["NU_DOCUMENTO"]) in chaves
+    if not chaves:
+        return df
 
-    flags = [no_estoque(row) for row in df.iter_rows(named=True)]
-    return df.with_columns(pl.Series("_no_estoque", flags)).with_columns(
+    chaves_df = pl.DataFrame(
+        {
+            "DOC_CEDENTE": [c for c, _ in chaves],
+            "NU_DOCUMENTO": [d for _, d in chaves],
+        },
+        schema={"DOC_CEDENTE": pl.Utf8, "NU_DOCUMENTO": pl.Utf8},
+    ).with_columns(pl.lit(True).alias("_no_estoque"))
+    df = df.join(chaves_df, on=["DOC_CEDENTE", "NU_DOCUMENTO"], how="left")
+    return df.with_columns(pl.col("_no_estoque").fill_null(False)).with_columns(
         pl.when(pl.col("_no_estoque") & pl.col("aprovada"))
         .then(pl.lit(False))
         .otherwise(pl.col("aprovada"))
@@ -90,6 +107,47 @@ def _marcar_ja_no_estoque(df: pl.DataFrame, chaves: frozenset[tuple[str, str]]) 
         .otherwise(pl.col("motivo_recusa"))
         .alias("motivo_recusa"),
     ).drop("_no_estoque")
+
+
+def _montar_notas(df: pl.DataFrame) -> list[dict[str, Any]]:
+    """Monta a lista de notas para a resposta JSON sem iterar linha a linha em Python."""
+    out = (
+        df.select(
+            pl.col("linha"),
+            pl.col("NU_DOCUMENTO").alias("nu_documento"),
+            pl.col("NOME_SACADO").alias("nome_sacado"),
+            pl.col("DATA_VENCIMENTO_ORIGINAL").dt.strftime("%d/%m/%Y").alias("data_vencimento"),
+            pl.col("VALOR_NOMINAL").alias("valor_nominal"),
+            pl.col("aprovada"),
+            pl.col("motivo_recusa"),
+            pl.col("valor_liquido"),
+        )
+        .with_columns(
+            pl.when(pl.col("aprovada"))
+            .then(pl.lit("aprovada"))
+            .otherwise(pl.lit("recusada"))
+            .alias("status"),
+            pl.when(pl.col("aprovada"))
+            .then(pl.lit(None, dtype=pl.Utf8))
+            .otherwise(pl.col("motivo_recusa"))
+            .alias("motivo"),
+            pl.when(pl.col("aprovada"))
+            .then(pl.col("valor_liquido"))
+            .otherwise(pl.lit(None, dtype=pl.Float64))
+            .alias("valor_liquido"),
+        )
+        .select(
+            "linha",
+            "nu_documento",
+            "nome_sacado",
+            "data_vencimento",
+            "valor_nominal",
+            "status",
+            "motivo",
+            "valor_liquido",
+        )
+    )
+    return out.to_dicts()
 
 
 def validar_arquivo_csv(
@@ -113,29 +171,13 @@ def validar_arquivo_csv(
         chaves = _carregar_chaves_estoque(estoque)
         df = _marcar_ja_no_estoque(df, chaves)
 
-    df = _marcar_duplicidade_lote(df)
+    if _duplicidade_lote_habilitada():
+        df = _marcar_duplicidade_lote(df)
 
     df = calcular_valor_liquido(df, config["precificacao"], data_base)
 
-    notas: list[dict[str, Any]] = []
-    for row in df.iter_rows(named=True):
-        aprovada = bool(row["aprovada"])
-        notas.append(
-            {
-                "linha": int(row["linha"]),
-                "nu_documento": row.get("NU_DOCUMENTO"),
-                "nome_sacado": row.get("NOME_SACADO"),
-                "data_vencimento": _formatar_data_vencimento(
-                    row.get("DATA_VENCIMENTO_ORIGINAL")
-                ),
-                "valor_nominal": row.get("VALOR_NOMINAL"),
-                "status": "aprovada" if aprovada else "recusada",
-                "motivo": None if aprovada else row.get("motivo_recusa"),
-                "valor_liquido": row.get("valor_liquido") if aprovada else None,
-            }
-        )
-
-    aprovadas = sum(1 for n in notas if n["status"] == "aprovada")
+    notas = _montar_notas(df)
+    aprovadas = int(df.filter(pl.col("aprovada")).height)
     recusadas = len(notas) - aprovadas
     total_receber = round(
         sum(n["valor_liquido"] or 0.0 for n in notas if n["status"] == "aprovada"),

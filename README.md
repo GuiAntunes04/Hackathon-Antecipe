@@ -14,11 +14,13 @@ python scripts/gerar_situacao_sacados.py --csv estoque_antecipe.csv
 
 **NAO_VENCIDA:** vencimento não pode ser anterior à `DATA_AQUISICAO` (alinhado ao gabarito; não compara vencimento com `DATA_BASE`).
 
-**Concentração:** raiz do CNPJ = 8 primeiros dígitos; ordem do CSV; a primeira nota aprovada no lote isenta o limite; depois, recusa se `(acumulado da raiz + candidata) / (total aprovado + candidata) > percentual_maximo` do JSON.
+**Concentração:** raiz do CNPJ = 8 primeiros dígitos; ordem do CSV; isenta a **primeira** nota aprovada no lote e a **primeira aprovada de cada raiz** (quando já houver ≥2 aprovadas e a raiz ainda não tiver sido avaliada nesta etapa); se a raiz já foi **recusada** por concentração e ainda não entrou no acumulado aprovado da raiz, novas candidatas da mesma raiz são recusadas; demais casos: `(acumulado da raiz + candidata) / (total aprovado + candidata) > percentual_maximo` do JSON.
 
 **Situação cadastral:** `python scripts/gerar_situacao_sacados.py` (todos `ATIVA` por padrão). Script opcional `gerar_situacao_gabarito.py` marca sacados com alguma linha barrada por situação — use só se não precisar reproduzir ordem temporal do gabarito (mesmo sacado pode ser `ATIVA` na linha 3 e `INAPTA` na 7909).
 
 **Upload novo vs carteira:** opcional `CAMINHO_ESTOQUE=estoque_antecipe.csv` recusa notas já presentes no estoque (não use ao revalidar o próprio estoque).
+
+**Duplicidade no lote:** após as regras do JSON, a 2ª+ linha com o mesmo `DOC_CEDENTE`, `NU_DOCUMENTO` e `VALOR_NOMINAL` (2 casas decimais) no mesmo CSV é recusada (`DUPLICIDADE_LOTE`), se ainda estiver aprovada. Mesmo cedente e documento com **valores diferentes** não conta como duplicata. Desligue com `DUPLICIDADE_LOTE=false` (útil ao comparar com o gabarito do estoque, que valida linha a linha).
 
 ## Pré-requisitos
 
@@ -71,6 +73,7 @@ Copie `.env.example` para `.env` e ajuste se necessário (o Compose usa `.env.ex
 | `LOG_LEVEL` | Nível de log (`DEBUG`, `INFO`, …) | `INFO` |
 | `CAMINHO_ESTOQUE` | (Opcional) CSV da carteira já comprada | `estoque_antecipe.csv` |
 | `MOCK_VALIDACAO` | `true`: resposta fixa de 10 notas (demo); `false`: pipeline real | `false` |
+| `DUPLICIDADE_LOTE` | Recusa repetidas (cedente + doc + valor) no mesmo envio | `true` |
 
 O arquivo `config/validadores_antecipe.json` contém as regras do ANTECIPE FIDC (sincronizado com o JSON do hackathon).
 

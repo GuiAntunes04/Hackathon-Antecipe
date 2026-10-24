@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import carregar_config
 from app.logging_setup import configurar_logging
 from app import mock_validacao, pipeline
+from app.rules import aquecer_cache_validacao
 
 logger = structlog.get_logger(__name__)
 
@@ -30,6 +31,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configurar_logging(config.log_level)
     app.state.config = config
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    situacao = DATA_DIR / "situacao_sacados.csv"
+    if not situacao.is_file():
+        situacao = Path("data/situacao_sacados.csv")
+    aquecer_cache_validacao(config.caminho_validadores, situacao if situacao.is_file() else None)
     logger.info(
         "aplicacao_iniciada",
         data_base=config.data_base.isoformat(),
