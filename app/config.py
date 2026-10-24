@@ -67,9 +67,9 @@ def _parse_persistencia_lote(valor: str | None) -> PersistenciaLote:
 
 
 def caminho_situacao_default() -> Path:
-    """CSV mesclado mock + sacados do estoque (gerar com mesclar_situacao_sacados.py)."""
+    """CSV oficial de situação cadastral (``cnpj_situacao_mock.csv`` do hackathon)."""
     _carregar_env_do_projeto()
-    raw = os.getenv("CAMINHO_SITUACAO", "data/situacao_sacados.csv")
+    raw = os.getenv("CAMINHO_SITUACAO", "cnpj_situacao_mock.csv")
     caminho = Path(raw)
     if not caminho.is_absolute():
         caminho = _PROJECT_ROOT / caminho

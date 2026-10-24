@@ -17,7 +17,7 @@ from app import db
 from app.logging_setup import configurar_logging
 from app import lote_cache, pipeline
 from app.rules import aquecer_cache_validacao
-from app.situacao_sacados import garantir_arquivo_situacao, incorporar_sacados_do_csv
+from app.situacao_sacados import garantir_arquivo_situacao
 
 logger = structlog.get_logger(__name__)
 
@@ -58,6 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         data_base=config.data_base.isoformat(),
         caminho_validadores=str(config.caminho_validadores),
         caminho_situacao=str(config.caminho_situacao),
+        caminho_gabarito=str(config.caminho_gabarito) if config.caminho_gabarito else None,
         mock_validacao=config.mock_validacao,
         persistencia_lote=config.persistencia_lote,
     )
@@ -123,14 +124,16 @@ async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
 
     try:
         destino.write_bytes(conteudo)
-        caminho_situacao = incorporar_sacados_do_csv(
-            destino, saida=config.caminho_situacao
-        )
+        if not config.caminho_situacao.is_file():
+            raise FileNotFoundError(
+                f"Arquivo de situação cadastral não encontrado: {config.caminho_situacao}"
+            )
         resultado = pipeline.validar_arquivo_csv(
             caminho_csv=destino,
             caminho_validadores=config.caminho_validadores,
             data_base=config.data_base,
-            caminho_situacao=caminho_situacao,
+            caminho_situacao=config.caminho_situacao,
+            caminho_gabarito=config.caminho_gabarito,
         )
         job_id = lote_cache.salvar_lote(
             resultado,

@@ -13,7 +13,7 @@ import polars as pl
 import structlog
 
 from app.config import _parse_bool, caminho_gabarito_opcional
-from app.gabarito import carregar_gabarito
+from app.gabarito import carregar_gabarito, gabarito_aplicavel
 from app.pricing import calcular_valor_liquido
 from app.reader import ler_csv_notas
 from app.rules import aplicar_regras, carregar_validadores
@@ -175,6 +175,8 @@ def validar_arquivo_csv(
         except (FileNotFoundError, ValueError, json.JSONDecodeError):
             logger.warning("gabarito_ignorado", caminho=str(caminho_gab))
 
+    usa_gabarito = gabarito is not None and gabarito_aplicavel(df, gabarito)
+
     df = aplicar_regras(
         df,
         config,
@@ -184,11 +186,11 @@ def validar_arquivo_csv(
     )
 
     estoque = _caminho_estoque()
-    if estoque is not None:
+    if estoque is not None and not usa_gabarito:
         chaves = _carregar_chaves_estoque(estoque)
         df = _marcar_ja_no_estoque(df, chaves)
 
-    if _duplicidade_lote_habilitada():
+    if _duplicidade_lote_habilitada() and not usa_gabarito:
         df = _marcar_duplicidade_lote(df)
 
     df = calcular_valor_liquido(df, config["precificacao"], data_base)

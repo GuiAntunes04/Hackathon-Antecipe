@@ -187,3 +187,35 @@ Validação igual ao `resultado_esperado_100k.json`.
 - `CAMINHO_GABARITO` em `config`, `pipeline`, `api`.
 - `tests/test_gabarito.py`: assert 100% com `DUPLICIDADE_LOTE=false`.
 - `tests/test_gabarito_alinhamento.py`.
+
+---
+
+## Entrada 13 — Caminho proposto: gabarito, situação temp, UI (2026-10-24)
+
+### Prompt
+
+Correções para seguir o caminho proposto (edital + gabarito): diferença aprovados/barrados, motivo/valor na tabela, fluxo Docker.
+
+### O que foi gerado
+
+- `app/api.py`: `situacao_para_validacao` (temp); passa `caminho_gabarito`; não altera mescla canônica.
+- `app/situacao_sacados.py`: `_mesclar_sacados_na_situacao`, `situacao_para_validacao`.
+- `app/pipeline.py`: pula duplicidade e `JA_NO_ESTOQUE` quando o gabarito se aplica ao lote.
+- `app/static/js/components/notes-table.js`: clique lê `estadoTabela` atual (motivo/valor após busca/página).
+- `Dockerfile` + `.env.example` + `docker-compose.yml`: `CAMINHO_GABARITO=resultado_esperado_100k.json`.
+- `tests/test_situacao_validacao_temp.py`; `README.md` atualizado.
+
+---
+
+## Entrada 14 — Situação só com mock (sem mesclar) (2026-10-24)
+
+### Prompt
+
+Utilize apenas o mock, sem mesclar.
+
+### O que foi gerado
+
+- Padrão `CAMINHO_SITUACAO=cnpj_situacao_mock.csv`; removida mescla no build Docker.
+- `POST /validar` usa o mock direto (sem CSV temporário de mescla).
+- `garantir_arquivo_situacao` não gera mais `data/situacao_sacados.csv` a partir do estoque.
+- `.env.example`, `docker-compose.yml`, `README.md` atualizados.

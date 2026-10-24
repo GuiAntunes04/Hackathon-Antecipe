@@ -426,9 +426,11 @@ function vincularInteracoes(container) {
   }
 
   function aoEscolherNota(tr) {
+    const estadoAtual = estadoTabela.get(container);
+    if (!estadoAtual?.lista || !banner) return;
     const index = Number(tr.dataset.notaIndex);
-    const nota = estado.lista[index];
-    if (!nota || !banner) return;
+    const nota = estadoAtual.lista[index];
+    if (!nota) return;
     selecionarLinha(tr);
     mostrarBannerNota(banner, nota);
   }
