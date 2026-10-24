@@ -1,4 +1,4 @@
-# PROMPTS — Portal Antecipe (Hackathon)
+# PROMPTS_BACK — Portal Antecipe (Hackathon)
 
 Registro de prompts usados com assistente de IA e o que cada um gerou.
 
