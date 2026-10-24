@@ -3,15 +3,42 @@
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from app import lote_repository
+from app.config import PersistenciaLote
+from app.lote_paginacao import (
+    TAMANHO_PAGINA_PADRAO,
+    fatiar_notas,
+    filtrar_notas_por_status,
+    info_paginacao,
+    normalizar_filtro_status,
+)
+
 LOTE_DIR = Path("data") / "lotes"
-TAMANHO_PAGINA_PADRAO = 10
-FILTRO_TODAS = "todas"
-FILTROS_STATUS_VALIDOS = frozenset({FILTRO_TODAS, "aprovada", "recusada"})
+
+# Re-export para compatibilidade com imports existentes
+__all__ = [
+    "LOTE_DIR",
+    "TAMANHO_PAGINA_PADRAO",
+    "FILTRO_TODAS",
+    "FILTROS_STATUS_VALIDOS",
+    "garantir_diretorio",
+    "salvar_lote",
+    "carregar_lote",
+    "info_paginacao",
+    "fatiar_notas",
+    "normalizar_filtro_status",
+    "filtrar_notas_por_status",
+    "resposta_lote_completo",
+    "resposta_pagina_lote",
+    "resposta_pagina_job",
+    "resposta_lote_completo_job",
+]
+
+from app.lote_paginacao import FILTRO_TODAS, FILTROS_STATUS_VALIDOS  # noqa: E402
 
 
 def _caminho_lote(job_id: str) -> Path:
@@ -24,8 +51,7 @@ def garantir_diretorio() -> None:
     LOTE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def salvar_lote(resultado: dict[str, Any]) -> str:
-    """Grava resultado completo e devolve job_id."""
+def _salvar_lote_json(resultado: dict[str, Any]) -> str:
     garantir_diretorio()
     job_id = uuid4().hex
     payload = {
@@ -41,60 +67,27 @@ def salvar_lote(resultado: dict[str, Any]) -> str:
     return job_id
 
 
+def salvar_lote(
+    resultado: dict[str, Any],
+    *,
+    database_url: str,
+    persistencia: PersistenciaLote = "postgres",
+    nome_arquivo: str | None = None,
+) -> str:
+    """Grava o lote e devolve job_id."""
+    if persistencia == "json":
+        return _salvar_lote_json(resultado)
+    return lote_repository.salvar_lote_postgres(
+        database_url, resultado, nome_arquivo=nome_arquivo
+    )
+
+
 def carregar_lote(job_id: str) -> dict[str, Any]:
+    """Carrega lote do JSON (modo json ou testes)."""
     caminho = _caminho_lote(job_id)
     if not caminho.is_file():
         raise FileNotFoundError(f"Lote não encontrado: {job_id}")
     return json.loads(caminho.read_text(encoding="utf-8"))
-
-
-def info_paginacao(total_linhas: int, pagina: int, tamanho_pagina: int) -> dict[str, int]:
-    if tamanho_pagina < 1:
-        tamanho_pagina = TAMANHO_PAGINA_PADRAO
-    if total_linhas <= 0:
-        return {
-            "pagina": 1,
-            "tamanho_pagina": tamanho_pagina,
-            "total_paginas": 1,
-            "total_linhas": 0,
-        }
-    total_paginas = max(1, math.ceil(total_linhas / tamanho_pagina))
-    pagina = max(1, min(pagina, total_paginas))
-    return {
-        "pagina": pagina,
-        "tamanho_pagina": tamanho_pagina,
-        "total_paginas": total_paginas,
-        "total_linhas": total_linhas,
-    }
-
-
-def fatiar_notas(notas: list[Any], pagina: int, tamanho_pagina: int) -> list[Any]:
-    inicio = (pagina - 1) * tamanho_pagina
-    fim = inicio + tamanho_pagina
-    return notas[inicio:fim]
-
-
-def normalizar_filtro_status(valor: str | None) -> str:
-    """Retorna 'todas', 'aprovada' ou 'recusada'."""
-    if valor is None or not str(valor).strip():
-        return FILTRO_TODAS
-    bruto = str(valor).strip().lower()
-    if bruto in (FILTRO_TODAS, "all"):
-        return FILTRO_TODAS
-    if bruto in ("aprovada", "aprovadas", "aceita", "aceitas"):
-        return "aprovada"
-    if bruto in ("recusada", "recusadas"):
-        return "recusada"
-    raise ValueError(
-        f"Filtro de status inválido: {valor!r}. Use todas, aprovada ou recusada."
-    )
-
-
-def filtrar_notas_por_status(notas: list[Any], filtro: str) -> list[Any]:
-    if filtro == FILTRO_TODAS:
-        return notas
-    alvo = filtro.lower()
-    return [n for n in notas if str(n.get("status", "")).lower() == alvo]
 
 
 def resposta_lote_completo(lote: dict[str, Any], job_id: str) -> dict[str, Any]:
@@ -125,7 +118,7 @@ def resposta_pagina_lote(
     tamanho_pagina: int = TAMANHO_PAGINA_PADRAO,
     filtro_status: str | None = None,
 ) -> dict[str, Any]:
-    """Fatia notas (uso interno / testes; API expõe lote completo)."""
+    """Monta resposta a partir de um dict de lote em memória (JSON / pós-validação)."""
     notas = lote.get("notas") or []
     resumo = lote.get("resumo") or {}
     filtro = normalizar_filtro_status(filtro_status)
@@ -141,3 +134,76 @@ def resposta_pagina_lote(
         "paginacao": pag,
         "notas": fatiar_notas(notas_filtradas, pag["pagina"], pag["tamanho_pagina"]),
     }
+
+
+def resposta_pagina_job(
+    job_id: str,
+    *,
+    database_url: str,
+    persistencia: PersistenciaLote,
+    pagina: int,
+    tamanho_pagina: int = TAMANHO_PAGINA_PADRAO,
+    filtro_status: str | None = None,
+) -> dict[str, Any]:
+    """Devolve uma página do lote persistido (Postgres ou JSON)."""
+    if persistencia == "postgres":
+        return lote_repository.pagina_lote_postgres(
+            database_url,
+            job_id,
+            pagina=pagina,
+            tamanho_pagina=tamanho_pagina,
+            filtro_status=filtro_status,
+        )
+    lote = carregar_lote(job_id)
+    return resposta_pagina_lote(
+        lote,
+        job_id,
+        pagina=pagina,
+        tamanho_pagina=tamanho_pagina,
+        filtro_status=filtro_status,
+    )
+
+
+def resposta_lote_completo_job(
+    job_id: str,
+    *,
+    database_url: str,
+    persistencia: PersistenciaLote,
+) -> dict[str, Any]:
+    """Recarrega o lote inteiro (JSON ou Postgres) para GET /validar/lote."""
+    if persistencia == "json":
+        return resposta_lote_completo(carregar_lote(job_id), job_id)
+    amostra = lote_repository.pagina_lote_postgres(
+        database_url,
+        job_id,
+        pagina=1,
+        tamanho_pagina=1,
+        filtro_status=FILTRO_TODAS,
+    )
+    total = amostra["paginacao"]["total_linhas"]
+    if total <= 0:
+        return resposta_lote_completo(
+            {
+                "data_base": amostra.get("data_base"),
+                "resumo": amostra.get("resumo"),
+                "total_a_receber": amostra.get("total_a_receber"),
+                "notas": [],
+            },
+            job_id,
+        )
+    pagina_unica = lote_repository.pagina_lote_postgres(
+        database_url,
+        job_id,
+        pagina=1,
+        tamanho_pagina=total,
+        filtro_status=FILTRO_TODAS,
+    )
+    return resposta_lote_completo(
+        {
+            "data_base": pagina_unica.get("data_base"),
+            "resumo": pagina_unica.get("resumo"),
+            "total_a_receber": pagina_unica.get("total_a_receber"),
+            "notas": pagina_unica.get("notas") or [],
+        },
+        job_id,
+    )

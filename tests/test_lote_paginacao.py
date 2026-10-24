@@ -59,7 +59,9 @@ def test_get_lote_retorna_todas_notas(monkeypatch, tmp_path) -> None:
             "resumo": {"total_linhas": 15, "aprovadas": 0, "recusadas": 15},
             "total_a_receber": 0,
             "notas": notas,
-        }
+        },
+        database_url="postgresql://local/test",
+        persistencia="json",
     )
 
     with TestClient(app) as client:

@@ -138,3 +138,37 @@ Otimizar o pipeline de validação (~100k linhas) sem alterar regras de negócio
 - `app/pipeline.py`: duplicidade via `struct` + `cum_count().over()`; estoque via `join`; `_montar_notas()` com `to_dicts()`; cache de chaves do estoque por `mtime`.
 - `app/rules.py`: cache de `carregar_validadores` e `_carregar_situacao`; `_aplicar_cnpj_sacado_valido` (join em únicos); `aquecer_cache_validacao()`.
 - `app/api.py`: pré-carga no `lifespan`.
+
+---
+
+## Entrada 10 — PostgreSQL 16: lotes validados (2026-10-24)
+
+### Prompt
+
+Integrar PostgreSQL 16 como persistência oficial dos lotes (`validacao_lote` / `validacao_nota`), COPY para ~100k notas, paginação no SQL, `GET /saude` com checagem do banco, fallback `PERSISTENCIA_LOTE=json`, testes e README.
+
+### O que foi gerado
+
+- `app/db.py`: `conexao`, `verificar_conexao`, `init_schema` idempotente.
+- `app/lote_repository.py`: `salvar_lote_postgres` (COPY), `pagina_lote_postgres` (filtro + LIMIT/OFFSET).
+- `app/lote_cache.py`: fachada `salvar_lote` / `resposta_pagina_job` (postgres ou json).
+- `app/api.py`: schema no lifespan; `POST /validar` e `GET /validar/lote/{job_id}` via persistência configurada; `/saude` → 503 se DB indisponível.
+- `app/config.py`: `PERSISTENCIA_LOTE` (default `postgres`).
+- Testes: `tests/conftest.py`, `tests/test_db.py` (skip sem DB), `tests/test_saude.py` atualizado.
+- `.env.example`, `README.md` (API + relatório).
+
+---
+
+## Entrada 11 — Mescla situação mock + estoque (2026-10-24)
+
+### Prompt
+
+Completar lacunas do `cnpj_situacao_mock.csv` com ATIVA para sacados do estoque; preservar INAPTA/SUSPENSA do mock; script, Docker, testes e `CAMINHO_SITUACAO=data/situacao_sacados.csv`.
+
+### O que foi gerado
+
+- `app/situacao_merge.py`: `mesclar_mock_com_notas`, `gravar_situacao_mesclada`.
+- `scripts/mesclar_situacao_sacados.py`.
+- `tests/test_situacao_merge.py` (526204 / 57.018.055, INAPTA preservada).
+- `Dockerfile`: RUN mescla no build; `.env.example` + `config` default `data/situacao_sacados.csv`.
+- `README.md` atualizado.

@@ -12,6 +12,8 @@ from typing import Any
 import polars as pl
 import structlog
 
+from app.config import caminho_situacao_default
+
 logger = structlog.get_logger(__name__)
 
 # Validadores de carteira: ativos no JSON, implementados na etapa 3.
@@ -28,8 +30,6 @@ _VALIDADORES_LINHA_IMPLEMENTADOS: frozenset[str] = frozenset(
         "PRAZO_MAXIMO",
     }
 )
-
-_CAMINHO_SITUACAO_PADRAO = Path("data/situacao_sacados.csv")
 
 _cache_validadores: dict[tuple[str, float], dict[str, Any]] = {}
 _cache_situacao: dict[tuple[str, float], pl.DataFrame] = {}
@@ -162,6 +162,37 @@ def _expr_prazo_maximo(parametros: dict[str, Any], data_base: date) -> pl.Expr:
     return prazo > max_dias
 
 
+def _normalizar_colunas_situacao(raw: pl.DataFrame) -> pl.DataFrame:
+    """Aceita DOC_SACADO/SITUACAO ou DOC/SITUACAO_CADASTRAL (mock do hackathon)."""
+    cols = set(raw.columns)
+    if "DOC_SACADO" in cols:
+        doc = pl.col("DOC_SACADO")
+    elif "DOC" in cols:
+        doc = pl.col("DOC")
+    else:
+        raise ValueError(
+            f"CSV de situação cadastral sem DOC_SACADO ou DOC: {list(raw.columns)}"
+        )
+
+    if "SITUACAO" in cols:
+        situacao = pl.col("SITUACAO")
+    elif "SITUACAO_CADASTRAL" in cols:
+        situacao = pl.col("SITUACAO_CADASTRAL")
+    else:
+        raise ValueError(
+            "CSV de situação cadastral sem SITUACAO ou SITUACAO_CADASTRAL: "
+            f"{list(raw.columns)}"
+        )
+
+    return (
+        raw.select(
+            doc.cast(pl.Utf8).alias("DOC_SACADO"),
+            situacao.cast(pl.Utf8).alias("SITUACAO"),
+        )
+        .unique(subset=["DOC_SACADO"], keep="first")
+    )
+
+
 def _carregar_situacao(caminho: Path) -> pl.DataFrame:
     if not caminho.is_file():
         return pl.DataFrame({"DOC_SACADO": [], "SITUACAO": []})
@@ -170,10 +201,8 @@ def _carregar_situacao(caminho: Path) -> pl.DataFrame:
     if cache_key in _cache_situacao:
         return _cache_situacao[cache_key]
 
-    situacao = pl.read_csv(caminho, separator=";", encoding="utf8").select(
-        pl.col("DOC_SACADO").cast(pl.Utf8),
-        pl.col("SITUACAO").cast(pl.Utf8),
-    )
+    bruto = pl.read_csv(caminho, separator=";", encoding="utf8")
+    situacao = _normalizar_colunas_situacao(bruto)
     _cache_situacao[cache_key] = situacao
     return situacao
 
@@ -181,7 +210,7 @@ def _carregar_situacao(caminho: Path) -> pl.DataFrame:
 def aquecer_cache_validacao(caminho_validadores: Path, caminho_situacao: Path | None = None) -> None:
     """Pré-carrega JSON de validadores e CSV de situação (cache em memória)."""
     carregar_validadores(caminho_validadores)
-    situacao = caminho_situacao if caminho_situacao is not None else _CAMINHO_SITUACAO_PADRAO
+    situacao = caminho_situacao if caminho_situacao is not None else caminho_situacao_default()
     _carregar_situacao(situacao)
 
 
@@ -398,7 +427,7 @@ def aplicar_regras(
     inicio = time.perf_counter()
     _verificar_validadores_suportados(config)
 
-    caminho_situacao = caminho_situacao or _CAMINHO_SITUACAO_PADRAO
+    caminho_situacao = caminho_situacao or caminho_situacao_default()
     situacao_df = _carregar_situacao(caminho_situacao)
 
     resultado = df.with_columns(

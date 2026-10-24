@@ -9,6 +9,7 @@ import pytest
 from app.reader import ler_csv_notas
 from app.rules import (
     _aplicar_concentracao_maxima_sacado,
+    _carregar_situacao,
     carregar_validadores,
     cnpj_valido,
     mapear_codigo_para_funcao,
@@ -75,6 +76,15 @@ def test_aplicar_regras_casos(df_notas: pl.DataFrame, config_minimo: dict) -> No
     assert by_doc["NU005"]["codigo_recusa"] == "NAO_VENCIDA"
 
     assert by_doc["NU006"]["codigo_recusa"] == "PRAZO_MAXIMO"
+
+
+def test_carrega_cnpj_situacao_mock() -> None:
+    mock = Path(__file__).resolve().parent.parent / "cnpj_situacao_mock.csv"
+    if not mock.is_file():
+        pytest.skip("cnpj_situacao_mock.csv ausente")
+    df = _carregar_situacao(mock)
+    assert df.height > 3000
+    assert df.filter(pl.col("SITUACAO") == "INAPTA").height > 0
 
 
 def test_situacao_desconhecida(config_minimo: dict) -> None:

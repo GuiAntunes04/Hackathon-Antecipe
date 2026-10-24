@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.config import carregar_config
+from app import db
 from app.logging_setup import configurar_logging
 from app import lote_cache, pipeline
 from app.rules import aquecer_cache_validacao
@@ -31,14 +32,34 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configurar_logging(config.log_level)
     app.state.config = config
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    lote_cache.garantir_diretorio()
-    situacao = garantir_arquivo_situacao()
-    aquecer_cache_validacao(config.caminho_validadores, situacao)
+
+    if config.persistencia_lote == "json":
+        lote_cache.garantir_diretorio()
+    elif db.verificar_conexao(config.database_url):
+        with db.conexao(config.database_url) as conn:
+            db.init_schema(conn)
+        logger.info("postgres_schema_ok")
+    else:
+        logger.warning("postgres_indisponivel", persistencia=config.persistencia_lote)
+
+    if not config.caminho_situacao.is_file():
+        garantir_arquivo_situacao(saida=config.caminho_situacao)
+
+    if config.caminho_situacao.is_file():
+        aquecer_cache_validacao(config.caminho_validadores, config.caminho_situacao)
+    else:
+        logger.warning(
+            "situacao_cadastral_ausente",
+            caminho=str(config.caminho_situacao),
+        )
+
     logger.info(
         "aplicacao_iniciada",
         data_base=config.data_base.isoformat(),
         caminho_validadores=str(config.caminho_validadores),
-        situacao_sacados=str(situacao) if situacao else None,
+        caminho_situacao=str(config.caminho_situacao),
+        mock_validacao=config.mock_validacao,
+        persistencia_lote=config.persistencia_lote,
     )
     yield
 
@@ -68,7 +89,12 @@ def hero_fundo_portal() -> FileResponse:
 @app.get("/saude")
 def saude() -> JSONResponse:
     """Endpoint de saúde para monitoramento e Docker."""
-    return JSONResponse(content={"status": "ok"})
+    config = app.state.config
+    db_ok = db.verificar_conexao(config.database_url)
+    corpo = {"status": "ok", "database": "ok" if db_ok else "erro"}
+    if not db_ok:
+        return JSONResponse(status_code=503, content=corpo)
+    return JSONResponse(content=corpo)
 
 
 @app.get("/", response_model=None)
@@ -97,14 +123,21 @@ async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
 
     try:
         destino.write_bytes(conteudo)
-        caminho_situacao = incorporar_sacados_do_csv(destino)
+        caminho_situacao = incorporar_sacados_do_csv(
+            destino, saida=config.caminho_situacao
+        )
         resultado = pipeline.validar_arquivo_csv(
             caminho_csv=destino,
             caminho_validadores=config.caminho_validadores,
             data_base=config.data_base,
             caminho_situacao=caminho_situacao,
         )
-        job_id = lote_cache.salvar_lote(resultado)
+        job_id = lote_cache.salvar_lote(
+            resultado,
+            database_url=config.database_url,
+            persistencia=config.persistencia_lote,
+            nome_arquivo=nome_seguro,
+        )
         resposta = lote_cache.resposta_lote_completo(resultado, job_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -124,9 +157,13 @@ async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
 @app.get("/validar/lote/{job_id}")
 def validar_lote(job_id: str) -> JSONResponse:
     """Devolve o lote completo já validado."""
+    config = app.state.config
     try:
-        lote = lote_cache.carregar_lote(job_id)
-        resposta = lote_cache.resposta_lote_completo(lote, job_id)
+        resposta = lote_cache.resposta_lote_completo_job(
+            job_id,
+            database_url=config.database_url,
+            persistencia=config.persistencia_lote,
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
