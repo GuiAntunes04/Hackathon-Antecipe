@@ -76,8 +76,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         data_base=config.data_base.isoformat(),
         caminho_validadores=str(config.caminho_validadores),
         caminho_situacao=str(config.caminho_situacao),
-        caminho_gabarito=str(config.caminho_gabarito) if config.caminho_gabarito else None,
-        mock_validacao=config.mock_validacao,
         persistencia_lote=config.persistencia_lote,
         persistencia_lote_efetiva=persistencia_efetiva,
     )
@@ -166,7 +164,6 @@ async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
             caminho_validadores=config.caminho_validadores,
             data_base=config.data_base,
             caminho_situacao=config.caminho_situacao,
-            caminho_gabarito=config.caminho_gabarito,
         )
         job_id = lote_cache.salvar_lote(
             resultado,

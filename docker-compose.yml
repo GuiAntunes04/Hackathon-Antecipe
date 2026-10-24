@@ -23,7 +23,6 @@ services:
       - .env.example
     environment:
       DATABASE_URL: postgresql://antecipe:senha_ficticia_exemplo@db:5432/antecipe
-      CAMINHO_GABARITO: resultado_esperado_100k.json
       CAMINHO_SITUACAO: cnpj_situacao_mock.csv
     depends_on:
       db:

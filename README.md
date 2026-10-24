@@ -2,148 +2,114 @@
 
 ## Visão geral
 
-API e tela web para validar um CSV de recebíveis (notas) contra regras definidas em `validadores_antecipe.json`. Para cada nota, o sistema deve informar aprovação ou recusa, motivo em linguagem simples e valor líquido, além do total a receber. A mesma validação fica disponível pela interface e pelo endpoint `POST /validar`.
+API e tela web para validar um CSV de recebíveis (notas) contra regras definidas em `validadores_antecipe.json`. Para cada nota: aprovação ou recusa, motivo em linguagem simples, valor nominal e valor líquido (aprovadas), além do **total a receber**. A mesma validação está disponível pela interface e por `POST /validar`.
 
-Fluxo completo: `POST /validar` valida o CSV inteiro (`pipeline`: reader → regras → precificação), persiste o lote (PostgreSQL 16 por padrão) e devolve a **primeira página** de notas (`job_id`, `resumo`, `paginacao`, `notas`). Páginas seguintes e filtros: `GET /validar/lote/{job_id}`. Demo com 10 notas fixas só em `GET /` e `GET /validar/demo` quando `MOCK_VALIDACAO=true`; o upload sempre usa o pipeline real.
+Fluxo: upload → `pipeline` (reader → regras do JSON → precificação) → persistência do lote → resposta JSON com **todas as notas** e `job_id`. A **paginação, busca e filtros** são feitos no navegador; `GET /validar/lote/{job_id}` recarrega o lote completo persistido.
 
-**Situação cadastral:** o CSV de notas não traz situação do sacado. O padrão é **`cnpj_situacao_mock.csv`** (`CAMINHO_SITUACAO`): consulta direta por `DOC_SACADO` / `DOC`, sem mesclar com o estoque. CNPJ **ausente** no mock → recusa por situação desconhecida (mensagem do validador). Sacados com `INAPTA`, `SUSPENSA`, `BAIXADA`, etc. são recusados se não estiverem em `situacoes_aceitas` do JSON.
+**Situação cadastral:** consulta **`cnpj_situacao_mock.csv`** (`CAMINHO_SITUACAO`). CNPJ ausente no mock → recusa por situação desconhecida. Status `INAPTA`, `SUSPENSA`, `BAIXADA`, etc. recusam se não estiverem em `situacoes_aceitas` do JSON.
 
-Opcional (legado): `scripts/mesclar_situacao_sacados.py` gera `data/situacao_sacados.csv` mock+estoque; não é usado no Docker nem no `.env.example` padrão.
+**NAO_VENCIDA:** vencimento não pode ser anterior à `DATA_AQUISICAO`.
 
-**NAO_VENCIDA:** vencimento não pode ser anterior à `DATA_AQUISICAO` (alinhado ao gabarito; não compara vencimento com `DATA_BASE`).
+**Concentração:** raiz do CNPJ (8 dígitos); ordem do CSV; isenções da 1ª aprovada global e da 1ª por raiz (com ≥2 aprovadas); bloqueio após recusa na raiz; demais casos: participação acima do `percentual_maximo` do JSON.
 
-**Concentração:** raiz do CNPJ = 8 primeiros dígitos; ordem do CSV; isenta a **primeira** nota aprovada no lote e a **primeira aprovada de cada raiz** (quando já houver ≥2 aprovadas e a raiz ainda não tiver sido avaliada nesta etapa); se a raiz já foi **recusada** por concentração e ainda não entrou no acumulado aprovado da raiz, novas candidatas da mesma raiz são recusadas; demais casos: `(acumulado da raiz + candidata) / (total aprovado + candidata) > percentual_maximo` do JSON.
+**Duplicidade no lote:** 2ª+ linha com mesmo `DOC_CEDENTE`, `NU_DOCUMENTO` e `VALOR_NOMINAL` (2 casas) recusada (`DUPLICIDADE_LOTE=true`).
 
-**Gabarito 100k:** com `CAMINHO_GABARITO=resultado_esperado_100k.json` (padrão no Docker) e o CSV igual ao `estoque_antecipe.csv`, situação cadastral e concentração seguem o JSON oficial (100% aderência no teste `test_gabarito`). Nesse lote, duplicidade no envio e `CAMINHO_ESTOQUE` são ignorados para não divergir do gabarito. Uploads de outros CSVs usam só o mock + regra percentual de concentração + duplicidade conforme env.
+**Resultado vs `resultado_esperado_100k.json`:** a API **não** usa o gabarito. Status vêm só de `validadores_antecipe.json`, mock cadastral, concentração heurística e duplicidade — podem divergir do JSON oficial (sobretudo concentração). O arquivo `resultado_esperado_100k.json` fica no repositório para comparação opcional (`pytest -m slow`).
 
-**Upload novo vs carteira:** opcional `CAMINHO_ESTOQUE=estoque_antecipe.csv` recusa notas já presentes no estoque (não use ao revalidar o próprio estoque).
+Legado: `scripts/mesclar_situacao_sacados.py` gera CSV mock+estoque; não é o padrão de produção.
 
-**Duplicidade no lote:** após as regras do JSON, a 2ª+ linha com o mesmo `DOC_CEDENTE`, `NU_DOCUMENTO` e `VALOR_NOMINAL` (2 casas decimais) no mesmo CSV é recusada (`DUPLICIDADE_LOTE`), se ainda estiver aprovada. Mesmo cedente e documento com **valores diferentes** não conta como duplicata. Desligue com `DUPLICIDADE_LOTE=false` (útil ao comparar com o gabarito do estoque, que valida linha a linha).
+## Registro de prompts (IA)
+
+Ver [PROMPTS.md](PROMPTS.md) (índice) → [PROMPTS_BACK.md](PROMPTS_BACK.md), [PROMPTS_FRONT.md](PROMPTS_FRONT.md), [PROMPTS_MERGE.md](PROMPTS_MERGE.md).
 
 ## Pré-requisitos
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (ou Docker Engine + Compose v2)
-- Opcional, para testes locais sem container da app: Python 3.12
-- Opcional, para rebuild do CSS: [Node.js](https://nodejs.org/) (Tailwind 3)
+- Opcional: Python 3.12 e Node.js (Tailwind)
 
 ## Front-end (Tailwind)
 
-O estilo usa **Tailwind CSS**. Em desenvolvimento, `index.html` carrega o CDN do Tailwind (com `safelist` para classes montadas via JS).
-
-Para build local do CSS (recomendado na entrega, sem CDN):
+CDN no `index.html` em dev; para build local:
 
 ```bash
 npm install
 npm run build:css
 ```
 
-Troque no `index.html` o script CDN por: `<link href="/static/css/tailwind.css" rel="stylesheet" />`.
-
-Arquivos: `tailwind.config.js`, `app/static/css/input.css` → saída `app/static/css/tailwind.css`.
-
-## Assets e marca (Kanastra)
-
-| Pasta | Uso |
-|-------|-----|
-| `docs/brand/kanastra/` | Pacote de marca **referência** (guidelines, logos fonte, PDF). Não é exposto pela API. |
-| `app/static/img/brand/` | Logos e imagens **servidas** em `/static/img/brand/...` |
-| `app/static/fonts/` | Fontes web (`@font-face` em `main.css`) |
-
-Detalhes: [docs/brand/kanastra/README.md](docs/brand/kanastra/README.md).
-
-Ícones legados: `app/static/img/logo.svg`, `hero-mountains.png`.
+Troque o CDN por `<link href="/static/css/tailwind.css" rel="stylesheet" />`.
 
 ## Como rodar do zero
-
-Na raiz do projeto:
 
 ```bash
 docker compose up --build
 ```
 
-Aguarde os serviços `db` e `app` ficarem saudáveis. Em seguida:
-
 | Recurso | URL |
 |---------|-----|
-| Tela de upload | http://localhost:8000/ |
-| Saúde da API | http://localhost:8000/saude |
-| Documentação OpenAPI | http://localhost:8000/docs |
+| Portal | http://localhost:8000/ |
+| Saúde | http://localhost:8000/saude |
+| OpenAPI | http://localhost:8000/docs |
 
-Para parar: `Ctrl+C` e, se quiser remover volumes: `docker compose down -v`.
+Parar: `Ctrl+C`; remover volumes: `docker compose down -v`.
 
 ## API de validação
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| `POST` | `/validar` | Upload CSV (`multipart` campo `arquivo`). Query: `pagina`, `tamanho_pagina` (1–500, default 10), `status` (`todas` \| `aprovada` \| `recusada`). |
-| `GET` | `/validar/lote/{job_id}` | Mesma paginação/filtro para um lote já validado. |
-| `GET` | `/saude` | `{"status":"ok","database":"ok"}` ou HTTP 503 se o Postgres não responder. |
+| `POST` | `/validar` | Upload CSV (`multipart`, campo `arquivo`). Resposta: lote completo + `job_id`. |
+| `GET` | `/validar/lote/{job_id}` | Lote completo já persistido. |
+| `GET` | `/saude` | Saúde; HTTP 503 se Postgres configurado mas indisponível. |
 
-Resposta (trecho): `job_id`, `data_base`, `resumo` (`total_linhas`, `aprovadas`, `recusadas`), `total_a_receber`, `filtro_status`, `paginacao`, `notas[]` (campos da tabela: documento, sacado, vencimento, valores, status, motivo).
+Campos principais em `notas[]`: `nu_documento`, `nome_sacado`, `data_vencimento`, `valor_nominal`, `valor_bruto`, `status`, `motivo`, `valor_liquido`.
 
-Persistência: tabelas `validacao_lote` e `validacao_nota` (schema em `app/db.py`). Inserção em massa via `COPY`; paginação no SQL (`LIMIT`/`OFFSET`). Fallback `PERSISTENCIA_LOTE=json` grava em `data/lotes/{job_id}.json` (útil em dev sem banco).
+Persistência: PostgreSQL 16 (`COPY`) ou `PERSISTENCIA_LOTE=json` em `data/lotes/`. Sem DB no boot, a API faz fallback para JSON local.
 
 ## Variáveis de ambiente
 
-Copie `.env.example` para `.env` e ajuste se necessário (o Compose usa `.env.example` por padrão na subida):
+Copie `.env.example` para `.env` (Compose usa `.env.example` por padrão):
 
 | Variável | Descrição | Exemplo |
 |----------|-----------|---------|
-| `DATABASE_URL` | URL PostgreSQL 16 (psycopg 3) | `postgresql://antecipe:...@db:5432/antecipe` |
-| `PERSISTENCIA_LOTE` | `postgres` (padrão) ou `json` | `postgres` |
-| `DATA_BASE` | Data-base dos cálculos (`dd/mm/aaaa`) — **nunca** usar data do sistema | `22/10/2026` |
-| `CAMINHO_VALIDADORES` | Caminho do JSON de regras | `config/validadores_antecipe.json` |
-| `CAMINHO_SITUACAO` | CSV situação cadastral (mock oficial) | `cnpj_situacao_mock.csv` |
-| `CAMINHO_GABARITO` | (Opcional) JSON esperado para o estoque oficial | `resultado_esperado_100k.json` |
-| `LOG_LEVEL` | Nível de log (`DEBUG`, `INFO`, …) | `INFO` |
-| `CAMINHO_ESTOQUE` | (Opcional) CSV da carteira já comprada | `estoque_antecipe.csv` |
-| `MOCK_VALIDACAO` | `true`: resposta fixa de 10 notas (demo); `false`: pipeline real | `false` |
-| `DUPLICIDADE_LOTE` | Recusa repetidas (cedente + doc + valor) no mesmo envio | `true` |
+| `DATABASE_URL` | PostgreSQL 16 | `postgresql://antecipe:...@db:5432/antecipe` |
+| `PERSISTENCIA_LOTE` | `postgres` ou `json` | `json` (local) / `postgres` (Docker) |
+| `DATA_BASE` | Data-base (`dd/mm/aaaa`) | `22/10/2026` |
+| `CAMINHO_VALIDADORES` | JSON de regras | `config/validadores_antecipe.json` |
+| `CAMINHO_SITUACAO` | Mock cadastral | `cnpj_situacao_mock.csv` |
+| `LOG_LEVEL` | Log structlog | `INFO` |
+| `CAMINHO_ESTOQUE` | (Opcional) carteira já comprada | `estoque_antecipe.csv` |
+| `DUPLICIDADE_LOTE` | Duplicata no mesmo CSV | `true` |
 
-O arquivo `config/validadores_antecipe.json` contém as regras do ANTECIPE FIDC (sincronizado com o JSON do hackathon).
-
-## Como rodar os testes
-
-Com ambiente virtual e dependências instaladas:
+## Testes
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 pytest
+pytest -m slow   # gabarito 100k (requer estoque + resultado_esperado_100k.json)
 ```
 
-Testes de integração com Postgres (`tests/test_db.py`) rodam só se o banco estiver acessível; localmente use `PERSISTENCIA_LOTE=json` (padrão nos testes via `conftest.py`) ou:
-
-```bash
-docker compose up -d db
-docker compose run --rm app pytest
-```
+Com Postgres: `docker compose up -d db` e `docker compose run --rm app pytest`.
 
 ## Relatório
 
-- **O que foi construído:** Portal web + API FastAPI para validar lotes de recebíveis do ANTECIPE FIDC; regras parametrizadas por JSON; precificação; concentração e duplicidade; paginação server-side; persistência de lotes no PostgreSQL 16; tela com dashboard, filtros e tabela paginada.
-- **Tecnologias:** Python 3.12, FastAPI, Uvicorn, Polars, psycopg 3, structlog, PostgreSQL 16, Docker Compose, HTML/JS (ES modules) + Tailwind.
-- **Decisões de arquitetura:** Validação vetorizada com Polars; resultado do lote no Postgres com `COPY` e leitura paginada no SQL; `job_id` estável para a UI; cache de validadores/situação no startup; demo mock isolada dos endpoints de upload.
-- **O que ficou de fora / próximos passos:** Concentração/situação 100% em CSVs arbitrários sem gabarito; TTL/limpeza de lotes antigos; autenticação; build Tailwind sem CDN na entrega.
+- **Construído:** Portal Antecipe — validação parametrizada por JSON, mock cadastral, concentração e duplicidade, precificação, dashboard e tabela com filtros no front, API FastAPI, persistência de lotes.
+- **Stack:** Python 3.12, FastAPI, Polars, psycopg 3, structlog, PostgreSQL 16, Docker Compose, HTML/JS (ES modules), CSS Kanastra.
+- **Arquitetura:** Pipeline vetorizado; regras plugáveis via JSON; cache de validadores/situação no startup; lotes em Postgres com fallback JSON.
+- **Fora de escopo:** Autenticação, paginação server-side na API, TTL de lotes, motor de regras administrável sem restart.
 
-## Estrutura do projeto
+## Estrutura
 
 ```
 app/
-  api.py            # rotas e tela
-  config.py         # variáveis de ambiente
-  logging_setup.py  # structlog JSON
-  reader.py         # CSV
-  rules.py          # validadores JSON (linha)
-  pricing.py        # valor líquido
-  pipeline.py       # orquestração
-  db.py             # Postgres: schema e conexão
-  lote_repository.py # persistência de lotes (COPY + paginação SQL)
-  lote_cache.py     # fachada postgres/json + helpers de paginação
-  static/index.html
+  api.py              # rotas, static, lifespan
+  pipeline.py         # orquestração
+  rules.py / pricing.py / reader.py
+  gabarito.py         # só testes de aderência
+  db.py, lote_repository.py, lote_cache.py
+  static/             # portal + dashboard (JS modular)
 config/validadores_antecipe.json
-data/               # CSVs locais (ignorados no git)
-scripts/gerar_csv.py
-tests/test_saude.py
+cnpj_situacao_mock.csv
+PROMPTS.md            # índice de prompts IA
+tests/
 ```

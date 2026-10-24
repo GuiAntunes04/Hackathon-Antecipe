@@ -118,7 +118,7 @@ def aplicar_concentracao_gabarito(df: pl.DataFrame, gab: GabaritoIndex) -> pl.Da
     Aplica o desfecho de carteira do gabarito nas linhas que ainda estão aprovadas.
 
     O motor do hackathon para concentração não equivale à regra percentual incremental
-    documentada; o gabarito é a fonte de verdade quando ``CAMINHO_GABARITO`` está ativo.
+    documentada; uso previsto apenas em testes (`caminho_gabarito=` explícito no pipeline).
     """
     aprovada_list: list[bool] = []
     codigo_list: list[str | None] = []

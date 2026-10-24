@@ -219,3 +219,31 @@ Utilize apenas o mock, sem mesclar.
 - `POST /validar` usa o mock direto (sem CSV temporário de mescla).
 - `garantir_arquivo_situacao` não gera mais `data/situacao_sacados.csv` a partir do estoque.
 - `.env.example`, `docker-compose.yml`, `README.md` atualizados.
+
+---
+
+## Entrada 15 — Limpeza final e docs (2026-10-24)
+
+### Prompt
+
+Remover código morto, otimizar sem gabarito em runtime; README e PROMPTS conforme edital.
+
+### O que foi gerado
+
+- Gabarito só via `caminho_gabarito=` nos testes; removido de `config`, API e Docker.
+- Removidos merge/upload legado em `situacao_sacados.py`, demo JS, scripts `extract_*` / `split_dashboard`.
+- `total_a_receber` via soma Polars; `PROMPTS.md` índice; README alinhado à API real.
+
+---
+
+## Entrada 16 — Sem gabarito em produção (2026-10-24)
+
+### Prompt
+
+Não vou utilizar o gabarito mesmo.
+
+### O que foi gerado
+
+- Removido `CAMINHO_GABARITO` de `config`, `api`, `docker-compose`, `.env.example`.
+- README: motor = JSON + mock + concentração heurística; divergência do `resultado_esperado_100k.json` é esperada.
+- `app/gabarito.py` e `pytest -m slow` permanecem só para regressão opcional (parâmetro explícito no pipeline).
