@@ -71,3 +71,19 @@ Ajustar `NAO_VENCIDA` e concentração para alinhar `resultado_esperado_100k.jso
 - `scripts/gerar_situacao_gabarito.py` (opcional; conflita com ordem temporal do gabarito).
 - `data/situacao_sacados.csv` regenerado com todos ATIVA.
 - `tests/test_gabarito.py`: linhas 2–3 ok; ~346/500 na amostra (situação cadastral simplificada).
+
+---
+
+## Entrada 5 — Pipeline real no upload pós-merge front (2026-10-24)
+
+### Prompt
+
+Corrigir `POST /validar` após merge com front (gravar upload em temp UUID, erros 400), enriquecer JSON do pipeline para a tabela, `MOCK_VALIDACAO=false` por padrão, testes e README.
+
+### O que foi gerado
+
+- `app/api.py`: bytes do upload → `data/{uuid}.csv`, `try/finally` com unlink; mock inalterado quando `MOCK_VALIDACAO=true`.
+- `app/pipeline.py`: `nome_sacado`, `data_vencimento` (dd/mm/aaaa), `valor_nominal` em cada nota.
+- `.env.example`: `MOCK_VALIDACAO=false`.
+- `tests/test_api_validar.py`: monkeypatch mock off + asserts de campos da UI.
+- `README.md`: variável `MOCK_VALIDACAO` e fluxo de upload temporário.

@@ -18,6 +18,14 @@ from app.rules import aplicar_regras, carregar_validadores
 logger = structlog.get_logger(__name__)
 
 
+def _formatar_data_vencimento(valor: Any) -> str | None:
+    if valor is None:
+        return None
+    if hasattr(valor, "strftime"):
+        return valor.strftime("%d/%m/%Y")
+    return str(valor)
+
+
 def _caminho_estoque() -> Path | None:
     raw = os.getenv("CAMINHO_ESTOQUE")
     if not raw:
@@ -116,6 +124,11 @@ def validar_arquivo_csv(
             {
                 "linha": int(row["linha"]),
                 "nu_documento": row.get("NU_DOCUMENTO"),
+                "nome_sacado": row.get("NOME_SACADO"),
+                "data_vencimento": _formatar_data_vencimento(
+                    row.get("DATA_VENCIMENTO_ORIGINAL")
+                ),
+                "valor_nominal": row.get("VALOR_NOMINAL"),
                 "status": "aprovada" if aprovada else "recusada",
                 "motivo": None if aprovada else row.get("motivo_recusa"),
                 "valor_liquido": row.get("valor_liquido") if aprovada else None,

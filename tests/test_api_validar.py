@@ -9,7 +9,8 @@ from app.api import app
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def test_post_validar_csv() -> None:
+def test_post_validar_csv(monkeypatch) -> None:
+    monkeypatch.setenv("MOCK_VALIDACAO", "false")
     caminho = FIXTURES / "notas_exemplo.csv"
     with TestClient(app) as client:
         with caminho.open("rb") as fh:
@@ -21,3 +22,7 @@ def test_post_validar_csv() -> None:
     body = resp.json()
     assert body["resumo"]["total_linhas"] == 6
     assert "notas" in body
+    primeira = body["notas"][0]
+    assert primeira.get("nome_sacado")
+    assert primeira.get("data_vencimento")
+    assert primeira.get("valor_nominal") is not None

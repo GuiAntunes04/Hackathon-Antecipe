@@ -4,7 +4,7 @@
 
 API e tela web para validar um CSV de recebíveis (notas) contra regras definidas em `validadores_antecipe.json`. Para cada nota, o sistema deve informar aprovação ou recusa, motivo em linguagem simples e valor líquido, além do total a receber. A mesma validação fica disponível pela interface e pelo endpoint `POST /validar`.
 
-Fluxo completo: `POST /validar` → `pipeline` (reader → regras → precificação) → JSON para a tela. Concentração por sacado (`CONCENTRACAO_MAXIMA_SACADO`) e Postgres (`db.py`) seguem parcial/fora — ver abaixo.
+Fluxo completo: `POST /validar` grava o upload em arquivo temporário em `data/`, executa `pipeline` (reader → regras → precificação) e devolve JSON para a tela (inclui `nome_sacado`, `data_vencimento`, `valor_nominal` por nota). Postgres (`db.py`) ainda não integrado — ver abaixo.
 
 **Situação cadastral:** o CSV de notas não traz situação do sacado; use `data/situacao_sacados.csv` (`DOC_SACADO`, `SITUACAO`). Gere a partir do estoque:
 
@@ -70,6 +70,7 @@ Copie `.env.example` para `.env` e ajuste se necessário (o Compose usa `.env.ex
 | `CAMINHO_VALIDADORES` | Caminho do JSON de regras | `config/validadores_antecipe.json` |
 | `LOG_LEVEL` | Nível de log (`DEBUG`, `INFO`, …) | `INFO` |
 | `CAMINHO_ESTOQUE` | (Opcional) CSV da carteira já comprada | `estoque_antecipe.csv` |
+| `MOCK_VALIDACAO` | `true`: resposta fixa de 10 notas (demo); `false`: pipeline real | `false` |
 
 O arquivo `config/validadores_antecipe.json` contém as regras do ANTECIPE FIDC (sincronizado com o JSON do hackathon).
 
