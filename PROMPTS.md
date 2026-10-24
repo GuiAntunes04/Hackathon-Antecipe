@@ -22,3 +22,20 @@ Stack: Python 3.12, FastAPI + Uvicorn, Polars, psycopg 3, structlog, pytest. Pos
 - `tests/test_saude.py` para `GET /saude`.
 - `.env.example`, `.gitignore`, `.gitleaks.toml`, `README.md`, `pytest.ini`.
 - Endpoint `GET /saude` funcional; demais funções de negócio com `NotImplementedError`.
+
+---
+
+## Entrada 2 — Regras de linha + precificação (2026-10-24)
+
+### Prompt
+
+Implementar validação por linha e cálculo de valor líquido parametrizados por `validadores_antecipe.json` (`rules.py`, `pricing.py`), fixture `data/situacao_sacados.csv`, testes e sync do JSON em `config/`. Sem pipeline completo, upload, concentração nem Postgres.
+
+### O que foi gerado
+
+- `app/rules.py`: carregamento do JSON, validadores ativos, regras vetorizadas (CNPJ, tipo, valor mínimo, vencimento, prazo, situação cadastral via CSV auxiliar); concentração ignorada nesta etapa.
+- `app/pricing.py`: `DESCONTO_SIMPLES` com `DATA_BASE`.
+- `app/reader.py` implementado (pré-requisito dos testes).
+- `config/validadores_antecipe.json` sincronizado com o arquivo do hackathon.
+- Testes: `test_reader.py`, `test_rules.py`, `test_pricing.py` + fixtures em `tests/fixtures/`.
+- README e nota sobre `data/situacao_sacados.csv`.

@@ -4,7 +4,9 @@
 
 API e tela web para validar um CSV de recebíveis (notas) contra regras definidas em `validadores_antecipe.json`. Para cada nota, o sistema deve informar aprovação ou recusa, motivo em linguagem simples e valor líquido, além do total a receber. A mesma validação fica disponível pela interface e pelo endpoint `POST /validar`.
 
-Este repositório contém **apenas o esqueleto**: Docker, FastAPI, stubs de módulos e teste de saúde. Regras de negócio, leitura de CSV, precificação e banco serão implementadas em seguida.
+Leitura de CSV, validação por linha (regras do JSON) e precificação `DESCONTO_SIMPLES` estão implementadas em `reader`, `rules` e `pricing`. Pipeline completo, upload na API, concentração de carteira e Postgres seguem pendentes.
+
+**Situação cadastral:** o CSV de notas não traz situação do sacado; o validador `SITUACAO_CADASTRAL_SACADO` usa o arquivo `data/situacao_sacados.csv` (colunas `DOC_SACADO`, `SITUACAO`). CNPJ sem registro no arquivo é recusado.
 
 ## Pré-requisitos
 
@@ -40,7 +42,7 @@ Copie `.env.example` para `.env` e ajuste se necessário (o Compose usa `.env.ex
 | `CAMINHO_VALIDADORES` | Caminho do JSON de regras | `config/validadores_antecipe.json` |
 | `LOG_LEVEL` | Nível de log (`DEBUG`, `INFO`, …) | `INFO` |
 
-Substitua o conteúdo de `config/validadores_antecipe.json` pelo arquivo real do hackathon (hoje há um placeholder `[]`).
+O arquivo `config/validadores_antecipe.json` contém as regras do ANTECIPE FIDC (sincronizado com o JSON do hackathon).
 
 ## Como rodar os testes
 
@@ -77,9 +79,9 @@ app/
   api.py            # rotas e tela
   config.py         # variáveis de ambiente
   logging_setup.py  # structlog JSON
-  reader.py         # CSV (stub)
-  rules.py          # validadores JSON (stub)
-  pricing.py        # valor líquido (stub)
+  reader.py         # CSV
+  rules.py          # validadores JSON (linha)
+  pricing.py        # valor líquido
   pipeline.py       # orquestração (stub)
   db.py             # Postgres (stub)
   static/index.html
