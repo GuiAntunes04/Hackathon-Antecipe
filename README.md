@@ -24,6 +24,22 @@ python scripts/gerar_situacao_sacados.py --csv estoque_antecipe.csv
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (ou Docker Engine + Compose v2)
 - Opcional, para testes locais sem container da app: Python 3.12
+- Opcional, para rebuild do CSS: [Node.js](https://nodejs.org/) (Tailwind 3)
+
+## Front-end (Tailwind)
+
+O estilo usa **Tailwind CSS**. Em desenvolvimento, `index.html` carrega o CDN do Tailwind (com `safelist` para classes montadas via JS).
+
+Para build local do CSS (recomendado na entrega, sem CDN):
+
+```bash
+npm install
+npm run build:css
+```
+
+Troque no `index.html` o script CDN por: `<link href="/static/css/tailwind.css" rel="stylesheet" />`.
+
+Arquivos: `tailwind.config.js`, `app/static/css/input.css` → saída `app/static/css/tailwind.css`.
 
 ## Como rodar do zero
 

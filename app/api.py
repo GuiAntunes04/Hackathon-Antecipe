@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import uuid
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
 import structlog
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from app.config import carregar_config
 from app.logging_setup import configurar_logging
-from app import pipeline
+from app import mock_validacao, pipeline
 
 logger = structlog.get_logger(__name__)
 
@@ -42,6 +43,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 
 @app.get("/saude")
 def saude() -> JSONResponse:
@@ -49,38 +52,63 @@ def saude() -> JSONResponse:
     return JSONResponse(content={"status": "ok"})
 
 
-@app.get("/")
-def tela() -> FileResponse:
+@app.get("/", response_model=None)
+def tela() -> Response:
     """Serve a tela de upload e resultados."""
-    return FileResponse(STATIC_DIR / "index.html")
+    config = app.state.config
+    index_path = STATIC_DIR / "index.html"
+    if not config.mock_validacao:
+        return FileResponse(index_path)
+
+    html = index_path.read_text(encoding="utf-8")
+    payload = json.dumps(mock_validacao.resultado_simulado(), ensure_ascii=False)
+    payload = payload.replace("</", "<\\/")
+    injecao = (
+        f'<script id="antecipe-demo-data" type="application/json">{payload}</script>\n'
+    )
+    if "</body>" in html:
+        html = html.replace("</body>", injecao + "</body>", 1)
+    else:
+        html = html + injecao
+
+    return HTMLResponse(
+        content=html,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/validar/demo")
+def validar_demo() -> JSONResponse:
+    """Retorna lote mock para a tela iniciar preenchida (somente com MOCK_VALIDACAO)."""
+    config = app.state.config
+    if not config.mock_validacao:
+        raise HTTPException(status_code=404, detail="Demo indisponível")
+    logger.info("validar_demo")
+    return JSONResponse(content=mock_validacao.resultado_simulado())
 
 
 @app.post("/validar")
 async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
     """Recebe CSV de notas e devolve resultado da validação (API)."""
     config = app.state.config
+    await arquivo.read()
+
+    if config.mock_validacao:
+        logger.info(
+            "validar_mock",
+            nome_arquivo=arquivo.filename,
+            content_type=arquivo.content_type,
+        )
+        return JSONResponse(content=mock_validacao.resultado_simulado())
+
     logger.info(
         "validar_solicitado",
         nome_arquivo=arquivo.filename,
         content_type=arquivo.content_type,
     )
-
-    nome_seguro = f"{uuid.uuid4().hex}.csv"
-    caminho_temp = DATA_DIR / nome_seguro
-
-    try:
-        conteudo = await arquivo.read()
-        caminho_temp.write_bytes(conteudo)
-        resultado = pipeline.validar_arquivo_csv(
-            caminho_csv=caminho_temp,
-            caminho_validadores=config.caminho_validadores,
-            data_base=config.data_base,
-        )
-        return JSONResponse(content=resultado)
-    except FileNotFoundError as exc:
-        return JSONResponse(status_code=400, content={"erro": str(exc)})
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"erro": str(exc)})
-    finally:
-        if caminho_temp.is_file():
-            caminho_temp.unlink(missing_ok=True)
+    resultado = pipeline.validar_arquivo_csv(
+        caminho_csv=Path("data") / (arquivo.filename or "upload.csv"),
+        caminho_validadores=config.caminho_validadores,
+        data_base=config.data_base,
+    )
+    return JSONResponse(content=resultado)
