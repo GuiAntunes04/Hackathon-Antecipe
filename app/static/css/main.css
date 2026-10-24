@@ -1,0 +1,178 @@
+/* Componentes (espelham @layer em input.css — use npm run build:css quando possível) */
+
+.panel {
+  border-radius: 0.75rem;
+  border: 1px solid rgb(226 232 240);
+  background-color: #fff;
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+@media (max-width: 1023px) {
+  .panel--full-bleed-mobile {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background-color: rgb(79 70 229);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #fff;
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary:hover {
+  background-color: rgb(67 56 202);
+}
+
+.btn-primary:focus {
+  outline: 2px solid rgb(99 102 241);
+  outline-offset: 2px;
+}
+
+.input-file {
+  display: block;
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid rgb(203 213 225);
+  background-color: #fff;
+  font-size: 0.875rem;
+  color: rgb(15 23 42);
+}
+
+.input-file::file-selector-button {
+  margin-right: 1rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background-color: rgb(238 242 255);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgb(67 56 202);
+}
+
+.input-file::file-selector-button:hover {
+  background-color: rgb(224 231 255);
+}
+
+/* Badges de status (preenchidos) — específico p/ vencer Preflight do Tailwind */
+.badge-status {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.badge-status.badge-status--aprovada {
+  color: rgb(6 95 70);
+  background-color: rgb(209 250 229);
+  border-color: rgb(209 250 229);
+}
+
+.badge-status.badge-status--recusada {
+  color: rgb(153 27 27);
+  background-color: rgb(254 226 226);
+  border-color: rgb(254 226 226);
+}
+
+/* Banner ao clicar na nota (valor a receber) */
+.nota-recebivel-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  border-radius: 0.75rem;
+  background-color: rgb(6 95 70);
+  padding: 1rem 1.25rem;
+  color: rgb(236 253 245);
+  box-shadow: 0 4px 14px rgb(6 95 70 / 0.35);
+}
+
+.nota-recebivel-banner[hidden] {
+  display: none !important;
+}
+
+.nota-recebivel-banner__titulo {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: rgb(236 253 245);
+}
+
+.nota-recebivel-banner__valor {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-align: right;
+  color: rgb(190 242 100);
+}
+
+.nota-recebivel-banner--recusada {
+  background-color: rgb(127 29 29);
+  box-shadow: 0 4px 14px rgb(127 29 29 / 0.35);
+}
+
+.nota-recebivel-banner__motivo {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: right;
+  color: rgb(254 226 226);
+}
+
+.notes-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.notes-table .col-nota {
+  width: 10%;
+}
+
+.notes-table .col-vencimento {
+  width: 14%;
+}
+
+.notes-table .col-valor {
+  width: 14%;
+}
+
+.notes-table .col-status {
+  width: 16%;
+}
+
+/* .col-sacado sem largura — ocupa o restante do container */
+
+tr.nota-row {
+  cursor: pointer;
+}
+
+tr.nota-row--selected {
+  background-color: rgb(236 253 245) !important;
+}
+
+tr.nota-row:hover {
+  background-color: rgb(248 250 252);
+}
