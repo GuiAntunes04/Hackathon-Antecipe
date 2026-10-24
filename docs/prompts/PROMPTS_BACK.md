@@ -276,3 +276,17 @@ Insira os prompts em uma pasta.
 
 - `PROMPTS.md`, `PROMPTS_BACK.md`, `PROMPTS_FRONT.md`, `PROMPTS_MERGE.md` → `docs/prompts/`.
 - `PROMPTS.md` na raiz aponta para o índice; `README.md` atualizado.
+
+---
+
+## Entrada 19 — Tailwind no build (2026-10-24)
+
+### Prompt
+
+Atualize (entrega: `tailwind.css` + Dockerfile).
+
+### O que foi gerado
+
+- `npm run build:css` → `app/static/css/tailwind.css` commitado.
+- `Dockerfile`: estágio `node:20-alpine` (`front-css`) antes da imagem Python.
+- `README.md`: nota sobre build CSS no Docker e local.

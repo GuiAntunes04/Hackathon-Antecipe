@@ -44,6 +44,8 @@ Chart.js carrega **só na tela de resultados**; fundo usa `hero-mountains.png` (
 docker compose up --build
 ```
 
+O **Dockerfile** gera `tailwind.css` no build (estágio Node). Fora do Docker: `npm install && npm run build:css` na raiz antes de `uvicorn`.
+
 | Recurso | URL |
 |---------|-----|
 | Portal | http://localhost:8000/ |
