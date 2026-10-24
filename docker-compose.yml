@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: senha_ficticia_exemplo
       POSTGRES_DB: antecipe
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,6 +23,7 @@ services:
       - .env.example
     environment:
       DATABASE_URL: postgresql://antecipe:senha_ficticia_exemplo@db:5432/antecipe
+      PERSISTENCIA_LOTE: postgres
       CAMINHO_SITUACAO: cnpj_situacao_mock.csv
     depends_on:
       db:

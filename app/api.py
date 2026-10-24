@@ -89,18 +89,20 @@ app = FastAPI(
 )
 
 
-class _StaticNoCacheMiddleware(BaseHTTPMiddleware):
-    """Evita JS/CSS antigo em cache (módulos ES importam outros arquivos)."""
+class _StaticCacheMiddleware(BaseHTTPMiddleware):
+    """Cache longo em assets versionados; JS modular sem cache agressivo em dev."""
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         path = request.url.path
-        if path.startswith("/static/js/") or path.startswith("/static/css/"):
+        if path.startswith("/static/img/") or "tailwind.css" in path:
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        elif path.startswith("/static/js/") or path.startswith("/static/css/"):
             response.headers["Cache-Control"] = "no-store, must-revalidate"
         return response
 
 
-app.add_middleware(_StaticNoCacheMiddleware)
+app.add_middleware(_StaticCacheMiddleware)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

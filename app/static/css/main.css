@@ -127,7 +127,7 @@ body.portal-no-scroll .cinematic-progress {
 
 /* Fundo Kanastra — 95% (home) ↔ 40% (resultados) */
 .portal-app-bg {
-  --portal-app-bg-image: url("/static/img/brand/kanastra-pattern-reference_reference1-digital.png?v=20261024c");
+  --portal-app-bg-image: url("/static/img/hero-mountains.png?v=20261024perf");
   position: fixed;
   inset: 0;
   z-index: 0;

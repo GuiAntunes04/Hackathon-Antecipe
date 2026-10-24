@@ -232,7 +232,7 @@ Remover código morto, otimizar sem gabarito em runtime; README e PROMPTS confor
 
 - Gabarito só via `caminho_gabarito=` nos testes; removido de `config`, API e Docker.
 - Removidos merge/upload legado em `situacao_sacados.py`, demo JS, scripts `extract_*` / `split_dashboard`.
-- `total_a_receber` via soma Polars; `PROMPTS.md` índice; README alinhado à API real.
+- `total_a_receber` via soma Polars; `docs/prompts/PROMPTS.md` índice; README alinhado à API real.
 
 ---
 
@@ -247,3 +247,32 @@ Não vou utilizar o gabarito mesmo.
 - Removido `CAMINHO_GABARITO` de `config`, `api`, `docker-compose`, `.env.example`.
 - README: motor = JSON + mock + concentração heurística; divergência do `resultado_esperado_100k.json` é esperada.
 - `app/gabarito.py` e `pytest -m slow` permanecem só para regressão opcional (parâmetro explícito no pipeline).
+
+---
+
+## Entrada 17 — Performance de abertura e persistência (2026-10-24)
+
+### Prompt
+
+Faça as alterações (localhost lento, import CSV).
+
+### O que foi gerado
+
+- `index.html`: Tailwind buildado (`tailwind.css`); Chart.js removido do carregamento inicial.
+- `app/static/js/lib/chart-loader.js`: Chart sob demanda no dashboard.
+- `main.css`: fundo `hero-mountains.png` (~260 KB) no lugar do pattern Kanastra (~3 MB).
+- `api.py`: cache `max-age` em `/static/img/` e `tailwind.css`.
+- `docker-compose.yml`: `PERSISTENCIA_LOTE=postgres`; Postgres só em `127.0.0.1:5432`.
+
+---
+
+## Entrada 18 — Prompts em `docs/prompts/` (2026-10-24)
+
+### Prompt
+
+Insira os prompts em uma pasta.
+
+### O que foi gerado
+
+- `PROMPTS.md`, `PROMPTS_BACK.md`, `PROMPTS_FRONT.md`, `PROMPTS_MERGE.md` → `docs/prompts/`.
+- `PROMPTS.md` na raiz aponta para o índice; `README.md` atualizado.

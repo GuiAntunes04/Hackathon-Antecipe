@@ -1,4 +1,5 @@
 import { t } from "../i18n.js";
+import { ensureChartJs } from "../lib/chart-loader.js";
 import { escapeHtml } from "../lib/format.js";
 import {
   agregarMotivosRecusa,
@@ -38,7 +39,7 @@ export { resetDashboardSlide, registrarSacadoRecente, vincularComboboxSacadoDash
  * @param {HTMLElement} container
  * @param {{ total_a_receber?: number | null, resumo?: { total_linhas?: number, aprovadas?: number, recusadas?: number }, notas?: object[], sacadosFiltrados?: string[], sacadosOpcoes?: string[] }} data
  */
-export function renderDashboardResumo(container, data) {
+export async function renderDashboardResumo(container, data) {
   guardarTableRootForaDoDashboard(container);
   const tabAnterior = capturarTabAtualDashboard(container);
   destroyDashboardCharts(container);
@@ -82,13 +83,18 @@ export function renderDashboardResumo(container, data) {
     </table>
   `;
 
-  if (serieMeses.length > 0) montarGraficoMensal(container, serieMeses);
-  montarGraficoRosca(container, {
-    aprovadas: painel.aprovadas,
-    recusadas: painel.recusadas,
-    totalLinhas: painel.totalLinhas,
-  });
-  montarGraficoMotivos(container, serieErros);
+  try {
+    await ensureChartJs();
+    if (serieMeses.length > 0) montarGraficoMensal(container, serieMeses);
+    montarGraficoRosca(container, {
+      aprovadas: painel.aprovadas,
+      recusadas: painel.recusadas,
+      totalLinhas: painel.totalLinhas,
+    });
+    montarGraficoMotivos(container, serieErros);
+  } catch {
+    /* gráficos opcionais; tabela e resumo seguem */
+  }
 
   montarTabelaNoDashboard(container);
 

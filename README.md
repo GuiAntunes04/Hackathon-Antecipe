@@ -20,7 +20,7 @@ Legado: `scripts/mesclar_situacao_sacados.py` gera CSV mock+estoque; não é o p
 
 ## Registro de prompts (IA)
 
-Ver [PROMPTS.md](PROMPTS.md) (índice) → [PROMPTS_BACK.md](PROMPTS_BACK.md), [PROMPTS_FRONT.md](PROMPTS_FRONT.md), [PROMPTS_MERGE.md](PROMPTS_MERGE.md).
+Ver [docs/prompts/PROMPTS.md](docs/prompts/PROMPTS.md) (índice) → [BACK](docs/prompts/PROMPTS_BACK.md), [FRONT](docs/prompts/PROMPTS_FRONT.md), [MERGE](docs/prompts/PROMPTS_MERGE.md).
 
 ## Pré-requisitos
 
@@ -29,14 +29,14 @@ Ver [PROMPTS.md](PROMPTS.md) (índice) → [PROMPTS_BACK.md](PROMPTS_BACK.md), [
 
 ## Front-end (Tailwind)
 
-CDN no `index.html` em dev; para build local:
+O portal usa **`/static/css/tailwind.css`** (build local). Após mudar classes Tailwind no HTML/JS:
 
 ```bash
 npm install
 npm run build:css
 ```
 
-Troque o CDN por `<link href="/static/css/tailwind.css" rel="stylesheet" />`.
+Chart.js carrega **só na tela de resultados**; fundo usa `hero-mountains.png` (~260 KB) em vez do PNG de marca (~3 MB).
 
 ## Como rodar do zero
 
@@ -110,6 +110,6 @@ app/
   static/             # portal + dashboard (JS modular)
 config/validadores_antecipe.json
 cnpj_situacao_mock.csv
-PROMPTS.md            # índice de prompts IA
+docs/prompts/         # registro de prompts IA (índice PROMPTS.md)
 tests/
 ```
