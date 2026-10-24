@@ -19,6 +19,23 @@ let headerFadeTimeout = null;
 /** @type {boolean | null} */
 let headerFadeTarget = null;
 
+/** Rolagem do header de resultados (ocultar ↓ / mostrar ↑). */
+const RESULTS_HEADER_TOP_EPS = 16;
+const RESULTS_HEADER_HIDE_ACC = 28;
+const RESULTS_HEADER_SHOW_ACC = 16;
+
+/** @type {number} */
+let resultsHeaderLastScrollY = 0;
+
+/** @type {number} */
+let resultsHeaderDownAcc = 0;
+
+/** @type {number} */
+let resultsHeaderUpAcc = 0;
+
+/** @type {boolean} */
+let resultsHeaderIsHidden = false;
+
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -55,7 +72,36 @@ export function observeCinematic(root = document) {
 export function cinematicRefresh() {
   observeCinematic(document);
   lenis?.resize();
-  syncPortalHeaderAside(getScrollY());
+  const y = getScrollY();
+  syncPortalHeaderAside(y);
+  syncResultsHeaderOnScroll(y);
+}
+
+/** Garante header de resultados visível (ex.: ao entrar na tela). */
+export function resetResultsHeaderScroll() {
+  const header = document.querySelector(".portal-results-header");
+  header?.classList.remove("portal-results-header--hidden");
+  resultsHeaderIsHidden = false;
+  resultsHeaderDownAcc = 0;
+  resultsHeaderUpAcc = 0;
+  resultsHeaderLastScrollY = getScrollY();
+}
+
+/**
+ * Rola a página até o topo do conteúdo (abas / upload).
+ * @param {HTMLElement | null | undefined} anchor
+ */
+export function scrollToPortalAnchor(anchor) {
+  const el = anchor || document.querySelector(".portal-main-wrap");
+  if (!el) return;
+  const offset = 72;
+  const top = el.getBoundingClientRect().top + getScrollY() - offset;
+  const y = Math.max(0, top);
+  if (lenis && typeof lenis.scrollTo === "function") {
+    lenis.scrollTo(y, { immediate: false });
+  } else {
+    window.scrollTo({ top: y, behavior: "smooth" });
+  }
 }
 
 /** @param {boolean} active */
@@ -135,6 +181,50 @@ function syncPortalHeaderAside(scrollY) {
   transitionHeaderAside(scrollY > PORTAL_HEADER_TOP_EPS);
 }
 
+/** @param {number} scrollY */
+function syncResultsHeaderOnScroll(scrollY) {
+  const header = document.querySelector(".portal-results-header");
+  if (!header) return;
+
+  if (!document.body.classList.contains("portal-screen-results")) {
+    header.classList.remove("portal-results-header--hidden");
+    resultsHeaderIsHidden = false;
+    resultsHeaderLastScrollY = scrollY;
+    return;
+  }
+
+  const delta = scrollY - resultsHeaderLastScrollY;
+  resultsHeaderLastScrollY = scrollY;
+
+  if (scrollY <= RESULTS_HEADER_TOP_EPS) {
+    resultsHeaderDownAcc = 0;
+    resultsHeaderUpAcc = 0;
+    if (resultsHeaderIsHidden) {
+      header.classList.remove("portal-results-header--hidden");
+      resultsHeaderIsHidden = false;
+    }
+    return;
+  }
+
+  if (delta > 0) {
+    resultsHeaderDownAcc += delta;
+    resultsHeaderUpAcc = 0;
+    if (!resultsHeaderIsHidden && resultsHeaderDownAcc >= RESULTS_HEADER_HIDE_ACC) {
+      header.classList.add("portal-results-header--hidden");
+      resultsHeaderIsHidden = true;
+      resultsHeaderDownAcc = 0;
+    }
+  } else if (delta < 0) {
+    resultsHeaderUpAcc += -delta;
+    resultsHeaderDownAcc = 0;
+    if (resultsHeaderIsHidden && resultsHeaderUpAcc >= RESULTS_HEADER_SHOW_ACC) {
+      header.classList.remove("portal-results-header--hidden");
+      resultsHeaderIsHidden = false;
+      resultsHeaderUpAcc = 0;
+    }
+  }
+}
+
 /**
  * @param {number} [scrollOverride]
  */
@@ -147,6 +237,7 @@ function updateScrollProgress(scrollOverride) {
     bar.style.setProperty("--scroll-progress", String(Math.min(1, Math.max(0, prog))));
   }
   syncPortalHeaderAside(y);
+  syncResultsHeaderOnScroll(y);
 }
 
 /**
@@ -188,6 +279,8 @@ export async function initCinematicScroll() {
       easing: (t) => Math.min(1, 1.001 - 2 ** (-10 * t)),
       smoothWheel: true,
       touchMultiplier: 1.2,
+      prevent: (node) =>
+        node instanceof Element && Boolean(node.closest(".notes-table-scroll")),
     });
 
     lenis.on("scroll", ({ scroll }) => {
@@ -198,7 +291,9 @@ export async function initCinematicScroll() {
 
     function raf(time) {
       lenis?.raf(time);
-      syncPortalHeaderAside(getScrollY());
+      const y = getScrollY();
+      syncPortalHeaderAside(y);
+      syncResultsHeaderOnScroll(y);
       requestAnimationFrame(raf);
     }
     requestAnimationFrame(raf);

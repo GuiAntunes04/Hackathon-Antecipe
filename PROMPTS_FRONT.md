@@ -45,6 +45,17 @@ Registro de prompts usados com assistente de IA e o que cada um gerou.
 | 37 | 2026-10-24 | Rolagem por etapas (scroll-snap) + conteúdo e header centrados | `index.html`, `main.css`, `cinematic-scroll.js`, `main.js` |
 | 38 | 2026-10-24 | Upload sem scroll; 3 etapas pós-validação (título → dashboard → tabela) | `index.html`, `main.js`, `cinematic-scroll.js`, `main.css` |
 | 39 | 2026-10-24 | Revert etapas/snap — rolagem normal (dashboard + tabela) | `index.html`, `main.js`, `cinematic-scroll.js`, `main.css` |
+| 40 | 2026-10-24 | Pipeline real + `situacao_sacados` (fim do mock na API) | `api.py`, `situacao_sacados.py`, `scripts/gerar_situacao_sacados.py`, testes |
+| 41 | 2026-10-24 | Validação/lote completo; paginação só no cliente | `api.py`, `lote_cache.py`, `validacao.js`, `main.js`, testes |
+| 42 | 2026-10-24 | i18n pt/en + globo no canto | `i18n.js`, `lang-switcher.js`, componentes, `index.html`, `main.css` |
+| 43 | 2026-10-24 | Ajustes mobile (header, paginação, dashboard) | `main.css`, `index.html`, `notes-table.js` |
+| 44 | 2026-10-24 | Header lateral: mais margem superior | `main.css` (`--portal-header-aside-top`) |
+| 45 | 2026-10-24 | Paginação: janela de 6 números de página | `config.js`, `notes-table.js` |
+| 46 | 2026-10-24 | Containers sem borda + carrossel dashboard mensal | `main.css`, `dashboard-resumo.js`, `main.js`, `i18n.js` |
+| 47 | 2026-10-24 | Hero montanhas rola com a página (não fixo) | `index.html`, `main.css` |
+| 48 | 2026-10-24 | Pesquisa por nota + período de vencimento | `notes-table.js`, `main.js`, `format.js`, `i18n.js`, `main.css` |
+| 49 | 2026-10-24 | Aba **Enviar lote** no início + alternância com resultados | `index.html`, `main.js`, `main.css`, `i18n.js` |
+| 50 | 2026-10-24 | Refatoração: tela inicial (título + upload) → resultados | `index.html`, `main.js`, `upload-panel.js`, `main.css`, `i18n.js` |
 
 ---
 
@@ -842,3 +853,218 @@ Desfazer toda a ideia de seção/snap; voltar ao rolamento normal.
 - **Resultados:** fluxo da **Entrada 35** — dashboard → tabela em sequência, **`has-resultado-bar`**, scroll da página + scroll interno na tabela; **header fixo** visível (compacto ao rolar).
 - **Upload:** continua **`lockUploadScroll()`** (sem rolagem); após validar **`unlockResultsScroll()`** reativa Lenis.
 - **`cinematic-scroll.js`:** só Lenis, reveals e header aside no scroll.
+
+---
+
+## Entrada 40 — Validação real e situação cadastral (2026-10-24)
+
+### Prompt
+
+Desative a validação de teste e use a validação do script (`gerar_situacao_sacados`).
+
+### O que mudou
+
+- **`app/situacao_sacados.py`:** gera/atualiza `data/situacao_sacados.csv` (sacados ATIVA); `garantir_arquivo_situacao()` no boot; `incorporar_sacados_do_csv()` após upload.
+- **`app/api.py`:** `GET /` só `FileResponse` (sem JSON demo); removido `GET /validar/demo`; `POST /validar` usa pipeline + `caminho_situacao`.
+- **`scripts/gerar_situacao_sacados.py`:** delega a `app.situacao_sacados.gerar_de_notas`.
+- **`.env.example`:** mock na API descontinuado; `MOCK_VALIDACAO=false`.
+- **Testes:** `test_validar_mock.py` atualizado.
+
+### Teste manual
+
+1. Subir API → conferir `data/situacao_sacados.csv` se ausente.
+2. Upload CSV → notas não recusadas em massa por `SITUACAO_CADASTRAL_DESCONHECIDA` quando sacados entram no CSV de situação.
+
+---
+
+## Entrada 41 — Lote inteiro na validação (2026-10-24)
+
+### Prompt
+
+Desative validação por página e faça tudo de uma vez.
+
+### O que mudou
+
+- **Backend:** `POST /validar` e `GET /validar/lote/{job_id}` devolvem **todas** as notas (`resposta_lote_completo`); removidos query params `pagina` / `tamanho_pagina` / `status` na API.
+- **Front:** `postValidar(file)` sem query; `loteAtual.notasCompletas` guarda o lote; filtro e fatias da tabela são **locais** (`main.js`).
+- **`validacao.js`:** `getValidarPagina` removido; opcional `getValidarLote(jobId)`.
+- **Testes:** `test_lote_paginacao.py`, `test_api_validar.py`.
+
+### Teste manual
+
+1. Upload → uma requisição; trocar página/filtro na tabela **não** chama a API de novo.
+
+---
+
+## Entrada 42 — Troca de idioma (2026-10-24)
+
+### Prompt
+
+Coloque um símbolo do globo no canto da página para trocar de idioma.
+
+### O que mudou
+
+- **`app/static/js/i18n.js`:** pt-BR / en-US, `t()`, `localStorage`, `onLocaleChange`.
+- **`lang-switcher.js`:** botão globo fixo canto superior direito; menu Português / English.
+- **Componentes** (`upload-panel`, `dashboard-resumo`, `notes-table`, `main.js`, `format.js`) usam `t()`.
+- **`index.html`:** `#lang-switcher-root`, `#portal-header-title`; **`main.css`:** estilos `.portal-lang-switch*`.
+
+### Teste manual
+
+1. Clicar globo → trocar idioma → textos da upload, dashboard, tabela e status atualizam.
+
+---
+
+## Entrada 43 — Mobile friendly (2026-10-24)
+
+### Prompt
+
+Não está mobile friendly.
+
+### O que mudou
+
+- **`index.html`:** `viewport-fit=cover`.
+- **`main.css` (@media max-width 639px):** header com reserva para globo; KPI/dashboard empilhados; stats em 1 coluna; paginação em grid (‹ › + números roláveis); banner NF empilhado; botão validar full width; safe areas.
+- **`notes-table.js`:** botões Anterior/Próxima com variantes curtas ‹ › no mobile.
+- **`overflow-x: clip`** em `.portal-app`.
+
+### Teste manual
+
+1. DevTools iPhone / Android → upload, resultados, paginação e header sem sobrepor o globo.
+
+---
+
+## Entrada 44 — Margem do header lateral (2026-10-24)
+
+### Prompt
+
+Aumente a margem superior do header quando ele fica ancorado na lateral.
+
+### O que mudou
+
+- **`main.css`:** `--portal-header-aside-top: 1.35rem` (antes `top: 0.5rem` em `.portal-header--aside`).
+
+---
+
+## Entrada 45 — Seis páginas na paginação (2026-10-24)
+
+### Prompt
+
+Aumente a quantidade de páginas de 3 para 6 exibidas.
+
+### O que mudou
+
+- **`config.js`:** `PAGINACAO_JANELA_NUMEROS = 6`.
+- **`notes-table.js`:** `gerarNumerosPagina` com janela deslizante de 6 números (+ 1 e última com reticências quando couber).
+
+---
+
+## Entrada 46 — Visual limpo e dashboard mensal (2026-10-24)
+
+### Prompt
+
+Tire todas as bordas dos containers, deixe o fundo branco; container de dashboard com botão lateral seta `>`; próximo dashboard mostra mudança ao longo dos meses.
+
+### O que mudou
+
+- **`main.css`:** `.panel`, dashboard, tabela e gráficos **sem borda/sombra**; fundo branco; carrossel `.dashboard-carousel*` (seta `›` / `‹`).
+- **`dashboard-resumo.js`:** slide 1 = resumo atual (Chart.js); slide 2 = **evolução por mês de vencimento** (soma `valor_liquido` das aprovadas) — gráfico de linha + lista; agregação no cliente a partir de `data.notas`.
+- **`main.js`:** passa `notas: loteAtual.notasCompletas` ao dashboard.
+- **`i18n.js`:** chaves `dashboard.monthly*`, `dashboard.nextSlide`, `dashboard.prevSlide`.
+
+### Teste manual
+
+1. Validar lote → dashboard branco sem molduras.
+2. Clicar **`›`** → gráfico mensal e totais por mês; **`‹`** volta ao resumo.
+3. Se não houver vencimento nas aprovadas → mensagem na 2ª tela.
+
+---
+
+## Entrada 47 — Hero não fixo (2026-10-24)
+
+### Prompt
+
+Não deixe a imagem inicial fixa mais.
+
+### O que mudou
+
+- **`index.html`:** `.portal-hero-bg` movido para dentro de `<main>` (primeiro filho); conteúdo em `.portal-main-wrap--below-header`.
+- **`main.css`:** hero `position: relative` (deixa de ser `fixed`); padding do header só no wrap (`portal-main-wrap--below-header`).
+
+### Teste manual
+
+1. Abrir portal → rolar após validar (ou liberar scroll) → paisagem **sobe** com o conteúdo em vez de ficar colada no viewport.
+
+---
+
+## Entrada 48 — Pesquisa e filtro por datas (2026-10-24)
+
+### Prompt
+
+Adicione um input de pesquisa por nota, e um campo para inserir data de início e data de fim justificado ao final.
+
+### O que mudou
+
+- **`notes-table.js`:** barra com `type="search"` (número da nota) e `type="date"` início/fim alinhados à **direita**; debounce na busca.
+- **`main.js`:** `filtrarNotasComConsulta` (status + texto + vencimento); estado `buscaNota`, `dataInicio`, `dataFim`.
+- **`format.js`:** `parseDataVencimentoBR`, `parseIsoDate`.
+- **`i18n.js`:** rótulos pt/en.
+- **`main.css`:** `.notes-toolbar`, `.notes-date-range { margin-left: auto }`.
+
+### Teste manual
+
+1. Validar lote → pesquisar parte do `nu_documento` → tabela e paginação atualizam.
+2. Informar início/fim → filtra por `data_vencimento` (dd/mm/aaaa); combina com filtro Aceitas/Recusadas.
+
+---
+
+## Entrada 49 — Aba Enviar lote no início (2026-10-24)
+
+### Prompt
+
+Devolva a aba de adicionar lote ao início.
+
+### O que mudou
+
+- **`index.html`:** `#portal-top-tabs` com **Enviar lote** (1ª) e **Resultados**.
+- **`main.js`:** após validar, abas visíveis; troca entre upload e dashboard/tabela; nova validação abre na aba de upload; ao concluir, foco em **Resultados**.
+- Upload **não** é removido do fluxo — acessível pela 1ª aba.
+- **`i18n.js`:** `upload.tab`, `results.tab`.
+
+### Teste manual
+
+1. Validar → abas aparecem; **Resultados** ativo.
+2. Clicar **Enviar lote** → formulário de CSV de novo.
+3. Enviar outro arquivo → valida e volta a **Resultados**.
+
+### Ajuste — upload no fim da página (2026-10-24)
+
+- **`main.css`:** `#dashboard-root` / `#table-root` só `display: flex` quando **não** `.hidden` (antes `.hidden` perdia para a especificidade do ID).
+- Aba **Enviar lote:** `portal-tab-upload` centraliza o painel; `scrollIntoView` nas abas ao trocar.
+
+### Ajuste — upload colado no fim (2026-10-24)
+
+- **`#results-panel`:** dashboard + tabela num wrapper; oculto inteiro na aba upload (evita “vão” no layout).
+- Removido `min-height` ~viewport na aba upload; reveal forçado + `scrollToPortalAnchor()` (Lenis).
+
+---
+
+## Entrada 50 — Duas telas: início e resultados (2026-10-24)
+
+### Prompt
+
+Refaça toda a tela inicial: título com opção de inserir arquivo logo abaixo; depois ir para tela de tabela e dashboards.
+
+### O que mudou
+
+- **`#portal-home`:** logo + título + formulário CSV (sem hero, sem header fixo, sem abas).
+- **`#portal-results`:** dashboard + tabela após validar; barra com **← Novo lote**.
+- Removidos header fixo antigo, hero, abas e fluxo `definirAba`.
+- **`upload-panel.js`:** só hint, arquivo e botão Validar.
+
+### Teste manual
+
+1. Abrir `/` → título centralizado e upload em seguida.
+2. Validar → troca para tela de resultados (dashboard + tabela).
+3. **Novo lote** → volta à tela inicial.
+4. Transição **fade** (~520ms) entre início e resultados (`portal-screen-home` / `portal-screen-results` + opacidade).

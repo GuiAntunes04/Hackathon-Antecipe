@@ -1,4 +1,4 @@
-"""Persistência de resultados de validação para paginação na API."""
+"""Persistência de resultados de validação (lote completo na API)."""
 
 from __future__ import annotations
 
@@ -32,8 +32,10 @@ __all__ = [
     "fatiar_notas",
     "normalizar_filtro_status",
     "filtrar_notas_por_status",
+    "resposta_lote_completo",
     "resposta_pagina_lote",
     "resposta_pagina_job",
+    "resposta_lote_completo_job",
 ]
 
 from app.lote_paginacao import FILTRO_TODAS, FILTROS_STATUS_VALIDOS  # noqa: E402
@@ -88,6 +90,27 @@ def carregar_lote(job_id: str) -> dict[str, Any]:
     return json.loads(caminho.read_text(encoding="utf-8"))
 
 
+def resposta_lote_completo(lote: dict[str, Any], job_id: str) -> dict[str, Any]:
+    """Devolve todas as notas validadas (sem fatiar na API)."""
+    notas = lote.get("notas") or []
+    resumo = lote.get("resumo") or {}
+    total = len(notas)
+    return {
+        "job_id": job_id,
+        "data_base": lote.get("data_base"),
+        "resumo": resumo,
+        "total_a_receber": lote.get("total_a_receber"),
+        "filtro_status": FILTRO_TODAS,
+        "paginacao": {
+            "pagina": 1,
+            "tamanho_pagina": total if total else TAMANHO_PAGINA_PADRAO,
+            "total_paginas": 1,
+            "total_linhas": total,
+        },
+        "notas": notas,
+    }
+
+
 def resposta_pagina_lote(
     lote: dict[str, Any],
     job_id: str,
@@ -138,4 +161,49 @@ def resposta_pagina_job(
         pagina=pagina,
         tamanho_pagina=tamanho_pagina,
         filtro_status=filtro_status,
+    )
+
+
+def resposta_lote_completo_job(
+    job_id: str,
+    *,
+    database_url: str,
+    persistencia: PersistenciaLote,
+) -> dict[str, Any]:
+    """Recarrega o lote inteiro (JSON ou Postgres) para GET /validar/lote."""
+    if persistencia == "json":
+        return resposta_lote_completo(carregar_lote(job_id), job_id)
+    amostra = lote_repository.pagina_lote_postgres(
+        database_url,
+        job_id,
+        pagina=1,
+        tamanho_pagina=1,
+        filtro_status=FILTRO_TODAS,
+    )
+    total = amostra["paginacao"]["total_linhas"]
+    if total <= 0:
+        return resposta_lote_completo(
+            {
+                "data_base": amostra.get("data_base"),
+                "resumo": amostra.get("resumo"),
+                "total_a_receber": amostra.get("total_a_receber"),
+                "notas": [],
+            },
+            job_id,
+        )
+    pagina_unica = lote_repository.pagina_lote_postgres(
+        database_url,
+        job_id,
+        pagina=1,
+        tamanho_pagina=total,
+        filtro_status=FILTRO_TODAS,
+    )
+    return resposta_lote_completo(
+        {
+            "data_base": pagina_unica.get("data_base"),
+            "resumo": pagina_unica.get("resumo"),
+            "total_a_receber": pagina_unica.get("total_a_receber"),
+            "notas": pagina_unica.get("notas") or [],
+        },
+        job_id,
     )

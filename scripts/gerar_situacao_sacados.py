@@ -6,25 +6,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import polars as pl
-
-from app.reader import ler_csv_notas
-
-
-def gerar(caminho_csv: Path, saida: Path) -> int:
-    """
-    Extrai DOC_SACADO distintos e grava situacao ATIVA.
-
-    Returns:
-        Quantidade de sacados escritos.
-    """
-    df = ler_csv_notas(caminho_csv)
-    sacados = df.select(pl.col("DOC_SACADO").unique().sort()).with_columns(
-        pl.lit("ATIVA").alias("SITUACAO")
-    )
-    saida.parent.mkdir(parents=True, exist_ok=True)
-    sacados.write_csv(saida, separator=";")
-    return sacados.height
+from app.situacao_sacados import gerar_de_notas
 
 
 def main() -> None:
@@ -42,7 +24,7 @@ def main() -> None:
         help="Arquivo de saída",
     )
     args = parser.parse_args()
-    n = gerar(args.csv, args.saida)
+    n = gerar_de_notas(args.csv, args.saida)
     print(f"Gerados {n} sacados em {args.saida}")
 
 
