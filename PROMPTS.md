@@ -39,3 +39,35 @@ Implementar validação por linha e cálculo de valor líquido parametrizados po
 - `config/validadores_antecipe.json` sincronizado com o arquivo do hackathon.
 - Testes: `test_reader.py`, `test_rules.py`, `test_pricing.py` + fixtures em `tests/fixtures/`.
 - README e nota sobre `data/situacao_sacados.csv`.
+
+---
+
+## Entrada 3 — Pipeline, concentração e API (2026-10-24)
+
+### Prompt
+
+Implementar Etapa 3: fluxo completo API + `CONCENTRACAO_MAXIMA_SACADO` + `data/situacao_sacados.csv` + `pipeline.py` + upload em `POST /validar`.
+
+### O que foi gerado
+
+- `app/pipeline.py`: orquestração e JSON de resposta; duplicidade no lote; opcional `CAMINHO_ESTOQUE`.
+- `app/rules.py`: concentração por raiz CNPJ (primeira aprovação isenta; demais limitadas pelo JSON).
+- `app/api.py`: grava upload temporário, erros 400.
+- `scripts/gerar_situacao_sacados.py` e geração de `data/situacao_sacados.csv`.
+- Testes: `test_pipeline.py`, `test_api_validar.py`, `test_gabarito.py` (slow).
+
+---
+
+## Entrada 4 — Calibração gabarito (2026-10-24)
+
+### Prompt
+
+Ajustar `NAO_VENCIDA` e concentração para alinhar `resultado_esperado_100k.json` (linha 3 concentração; teste slow).
+
+### O que foi gerado
+
+- `NAO_VENCIDA`: compara vencimento com `DATA_AQUISICAO` (gabarito não usa recusa vs `DATA_BASE`).
+- Concentração: mantida isenção da 1ª aprovada + limite percentual do JSON.
+- `scripts/gerar_situacao_gabarito.py` (opcional; conflita com ordem temporal do gabarito).
+- `data/situacao_sacados.csv` regenerado com todos ATIVA.
+- `tests/test_gabarito.py`: linhas 2–3 ok; ~346/500 na amostra (situação cadastral simplificada).

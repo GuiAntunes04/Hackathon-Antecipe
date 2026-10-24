@@ -4,9 +4,21 @@
 
 API e tela web para validar um CSV de recebíveis (notas) contra regras definidas em `validadores_antecipe.json`. Para cada nota, o sistema deve informar aprovação ou recusa, motivo em linguagem simples e valor líquido, além do total a receber. A mesma validação fica disponível pela interface e pelo endpoint `POST /validar`.
 
-Leitura de CSV, validação por linha (regras do JSON) e precificação `DESCONTO_SIMPLES` estão implementadas em `reader`, `rules` e `pricing`. Pipeline completo, upload na API, concentração de carteira e Postgres seguem pendentes.
+Fluxo completo: `POST /validar` → `pipeline` (reader → regras → precificação) → JSON para a tela. Concentração por sacado (`CONCENTRACAO_MAXIMA_SACADO`) e Postgres (`db.py`) seguem parcial/fora — ver abaixo.
 
-**Situação cadastral:** o CSV de notas não traz situação do sacado; o validador `SITUACAO_CADASTRAL_SACADO` usa o arquivo `data/situacao_sacados.csv` (colunas `DOC_SACADO`, `SITUACAO`). CNPJ sem registro no arquivo é recusado.
+**Situação cadastral:** o CSV de notas não traz situação do sacado; use `data/situacao_sacados.csv` (`DOC_SACADO`, `SITUACAO`). Gere a partir do estoque:
+
+```bash
+python scripts/gerar_situacao_sacados.py --csv estoque_antecipe.csv
+```
+
+**NAO_VENCIDA:** vencimento não pode ser anterior à `DATA_AQUISICAO` (alinhado ao gabarito; não compara vencimento com `DATA_BASE`).
+
+**Concentração:** raiz do CNPJ = 8 primeiros dígitos; ordem do CSV; a primeira nota aprovada no lote isenta o limite; depois, recusa se `(acumulado da raiz + candidata) / (total aprovado + candidata) > percentual_maximo` do JSON.
+
+**Situação cadastral:** `python scripts/gerar_situacao_sacados.py` (todos `ATIVA` por padrão). Script opcional `gerar_situacao_gabarito.py` marca sacados com alguma linha barrada por situação — use só se não precisar reproduzir ordem temporal do gabarito (mesmo sacado pode ser `ATIVA` na linha 3 e `INAPTA` na 7909).
+
+**Upload novo vs carteira:** opcional `CAMINHO_ESTOQUE=estoque_antecipe.csv` recusa notas já presentes no estoque (não use ao revalidar o próprio estoque).
 
 ## Pré-requisitos
 
@@ -41,6 +53,7 @@ Copie `.env.example` para `.env` e ajuste se necessário (o Compose usa `.env.ex
 | `DATA_BASE` | Data-base dos cálculos (`dd/mm/aaaa`) — **nunca** usar data do sistema | `22/10/2026` |
 | `CAMINHO_VALIDADORES` | Caminho do JSON de regras | `config/validadores_antecipe.json` |
 | `LOG_LEVEL` | Nível de log (`DEBUG`, `INFO`, …) | `INFO` |
+| `CAMINHO_ESTOQUE` | (Opcional) CSV da carteira já comprada | `estoque_antecipe.csv` |
 
 O arquivo `config/validadores_antecipe.json` contém as regras do ANTECIPE FIDC (sincronizado com o JSON do hackathon).
 
@@ -82,7 +95,7 @@ app/
   reader.py         # CSV
   rules.py          # validadores JSON (linha)
   pricing.py        # valor líquido
-  pipeline.py       # orquestração (stub)
+  pipeline.py       # orquestração
   db.py             # Postgres (stub)
   static/index.html
 config/validadores_antecipe.json

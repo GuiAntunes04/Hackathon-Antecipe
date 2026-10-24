@@ -79,10 +79,11 @@ def test_aplicar_regras_casos(df_notas: pl.DataFrame, config_minimo: dict) -> No
 def test_situacao_desconhecida(config_minimo: dict) -> None:
     df = pl.DataFrame(
         {
-            "DOC_SACADO": ["58.206.002/0001-11"],
+            "DOC_SACADO": ["68.937.649/0001-77"],
             "TIPO_RECEBIVEL": ["Duplicata"],
             "VALOR_NOMINAL": [500.0],
             "DATA_VENCIMENTO_ORIGINAL": [date(2026, 12, 7)],
+            "DATA_AQUISICAO": [date(2026, 4, 27)],
         }
     )
     situacao = FIXTURES / "situacao_sacados.csv"

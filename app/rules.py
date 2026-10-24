@@ -37,9 +37,16 @@ _MOTIVOS: dict[str, str] = {
     "SITUACAO_CADASTRAL_DESCONHECIDA": "Não foi possível confirmar a situação cadastral do sacado.",
     "TIPO_RECEBIVEL": "Este tipo de recebível não é aceito pelo fundo.",
     "VALOR_MINIMO": "O valor da nota está abaixo do mínimo permitido pelo fundo.",
-    "NAO_VENCIDA": "Esta nota já venceu em relação à data de referência do fundo.",
+    "NAO_VENCIDA": "A data de vencimento não pode ser anterior à data de aquisição da nota.",
     "PRAZO_MAXIMO": "O prazo até o vencimento ultrapassa o limite máximo do fundo.",
+    "CONCENTRACAO_MAXIMA_SACADO": "Este sacado concentraria mais do que o limite do fundo.",
 }
+
+
+def raiz_cnpj(doc: str) -> str:
+    """Raiz do CNPJ (8 primeiros dígitos numéricos)."""
+    digitos = _digitos_cnpj(doc)
+    return digitos[:8] if len(digitos) >= 8 else digitos
 
 
 def carregar_validadores(caminho: Path) -> dict[str, Any]:
@@ -130,9 +137,14 @@ def _expr_valor_minimo(parametros: dict[str, Any]) -> pl.Expr:
 
 
 def _expr_nao_vencida(parametros: dict[str, Any], data_base: date) -> pl.Expr:
-    del parametros
-    base = pl.lit(data_base, dtype=pl.Date)
-    return pl.col("DATA_VENCIMENTO_ORIGINAL") < base
+    """
+    Vencimento não pode ser anterior à data de aquisição.
+
+    O gabarito do hackathon não recusa por ``DATA_BASE`` (nenhum ``NAO_VENCIDA`` em
+    ``barrado_por``); ``data_base`` permanece na assinatura para coerência do pipeline.
+    """
+    del parametros, data_base
+    return pl.col("DATA_VENCIMENTO_ORIGINAL") < pl.col("DATA_AQUISICAO")
 
 
 def _expr_prazo_maximo(parametros: dict[str, Any], data_base: date) -> pl.Expr:
@@ -208,16 +220,92 @@ def _marcar_recusa(
     )
 
 
+_CARTEIRA_IMPLEMENTADOS: frozenset[str] = frozenset({"CONCENTRACAO_MAXIMA_SACADO"})
+
+
 def _verificar_validadores_suportados(config: dict[str, Any]) -> None:
     for val in validadores_ativos(config):
         codigo = val["codigo"]
         if codigo in _VALIDADORES_CARTEIRA:
+            if codigo not in _CARTEIRA_IMPLEMENTADOS:
+                raise ValueError(
+                    f"Validador de carteira ativo sem implementação: {codigo}."
+                )
             continue
         if codigo not in _VALIDADORES_LINHA_IMPLEMENTADOS:
             raise ValueError(
                 f"Validador ativo sem implementação de linha: {codigo}. "
                 "Implemente o validador ou desative-o no JSON."
             )
+
+
+def _aplicar_concentracao_maxima_sacado(
+    df: pl.DataFrame,
+    parametros: dict[str, Any],
+) -> pl.DataFrame:
+    """
+    Limita participação por raiz de CNPJ do sacado no lote aprovado (ordem do CSV).
+
+    A primeira nota que passa nas regras de linha isenta concentração; das demais,
+    recusa-se se (valor acumulado da raiz + candidata) / (total aprovado + candidata)
+    ultrapassar ``percentual_maximo`` do JSON.
+    """
+    percentual = float(parametros["percentual_maximo"])
+    limite = percentual / 100.0
+    codigo = "CONCENTRACAO_MAXIMA_SACADO"
+    motivo = _MOTIVOS[codigo]
+
+    acc_raiz: dict[str, float] = {}
+    total_aprovado = 0.0
+    primeira_aprovada = True
+
+    aprovada_list: list[bool] = []
+    codigo_list: list[str | None] = []
+    motivo_list: list[str | None] = []
+
+    for row in df.iter_rows(named=True):
+        aprovada = bool(row["aprovada"])
+        cod = row["codigo_recusa"]
+        mot = row["motivo_recusa"]
+
+        if not aprovada:
+            aprovada_list.append(False)
+            codigo_list.append(cod)
+            motivo_list.append(mot)
+            continue
+
+        raiz = raiz_cnpj(str(row["DOC_SACADO"]))
+        valor = float(row["VALOR_NOMINAL"])
+
+        if primeira_aprovada:
+            primeira_aprovada = False
+            acc_raiz[raiz] = acc_raiz.get(raiz, 0.0) + valor
+            total_aprovado += valor
+            aprovada_list.append(True)
+            codigo_list.append(None)
+            motivo_list.append(None)
+            continue
+
+        novo_total = total_aprovado + valor
+        participacao = (acc_raiz.get(raiz, 0.0) + valor) / novo_total if novo_total else 1.0
+
+        if participacao > limite:
+            aprovada_list.append(False)
+            codigo_list.append(codigo)
+            motivo_list.append(motivo)
+            continue
+
+        acc_raiz[raiz] = acc_raiz.get(raiz, 0.0) + valor
+        total_aprovado = novo_total
+        aprovada_list.append(True)
+        codigo_list.append(None)
+        motivo_list.append(None)
+
+    return df.with_columns(
+        pl.Series("aprovada", aprovada_list),
+        pl.Series("codigo_recusa", codigo_list),
+        pl.Series("motivo_recusa", motivo_list),
+    )
 
 
 def aplicar_regras(
@@ -229,7 +317,7 @@ def aplicar_regras(
     """
     Aplica validadores de linha ativos, na ordem do JSON, parando na primeira recusa.
 
-    Validadores de carteira (ex.: concentração) são ignorados nesta etapa.
+    Validadores de carteira ativos (concentração de sacado) rodam após as regras de linha.
     """
     inicio = time.perf_counter()
     _verificar_validadores_suportados(config)
@@ -247,6 +335,9 @@ def aplicar_regras(
         codigo = val["codigo"]
         parametros = val.get("parametros") or {}
 
+        if codigo == "CONCENTRACAO_MAXIMA_SACADO":
+            resultado = _aplicar_concentracao_maxima_sacado(resultado, parametros)
+            continue
         if codigo in _VALIDADORES_CARTEIRA:
             continue
 
