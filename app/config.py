@@ -6,6 +6,9 @@ import os
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Literal
+
+PersistenciaLote = Literal["postgres", "json"]
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -52,6 +55,27 @@ def _parse_data_base(valor: str) -> date:
     return date(ano, mes, dia)
 
 
+def _parse_persistencia_lote(valor: str | None) -> PersistenciaLote:
+    bruto = (valor or "postgres").strip().lower()
+    if bruto not in ("postgres", "json"):
+        raise ValueError(
+            f"PERSISTENCIA_LOTE inválido: {valor!r}. Use postgres ou json."
+        )
+    if bruto == "json":
+        return "json"
+    return "postgres"
+
+
+def caminho_situacao_default() -> Path:
+    """CSV mesclado mock + sacados do estoque (gerar com mesclar_situacao_sacados.py)."""
+    _carregar_env_do_projeto()
+    raw = os.getenv("CAMINHO_SITUACAO", "data/situacao_sacados.csv")
+    caminho = Path(raw)
+    if not caminho.is_absolute():
+        caminho = _PROJECT_ROOT / caminho
+    return caminho
+
+
 @dataclass(frozen=True)
 class Config:
     """Parâmetros carregados do ambiente."""
@@ -59,8 +83,10 @@ class Config:
     database_url: str
     data_base: date
     caminho_validadores: Path
+    caminho_situacao: Path
     log_level: str
     mock_validacao: bool
+    persistencia_lote: PersistenciaLote
 
 
 def carregar_config() -> Config:
@@ -75,6 +101,8 @@ def carregar_config() -> Config:
         ),
         data_base=_parse_data_base(data_base_raw),
         caminho_validadores=Path(caminho_raw),
+        caminho_situacao=caminho_situacao_default(),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         mock_validacao=_parse_bool(os.getenv("MOCK_VALIDACAO"), default=False),
+        persistencia_lote=_parse_persistencia_lote(os.getenv("PERSISTENCIA_LOTE")),
     )
