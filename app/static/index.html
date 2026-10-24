@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal Antecipe</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #1a1a1a; }
+    body { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.5rem; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+    th, td { border: 1px solid #eee; padding: 0.5rem; text-align: left; }
+    th { background: #f5f5f5; }
+    .erro { color: #b00020; }
+    .ok { color: #0d652d; }
+    #resumo { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Portal Antecipe</h1>
+  <p>Envie um CSV de recebíveis para validação.</p>
+
+  <div class="card">
+    <form id="form-upload">
+      <label for="arquivo">Arquivo CSV</label>
+      <input type="file" id="arquivo" name="arquivo" accept=".csv" required />
+      <button type="submit" style="margin-left: 0.5rem;">Validar</button>
+    </form>
+    <p id="status" aria-live="polite"></p>
+  </div>
+
+  <div class="card" id="painel-resultado" hidden>
+    <p id="resumo"></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Linha</th>
+          <th>Status</th>
+          <th>Motivo</th>
+          <th>Valor líquido</th>
+        </tr>
+      </thead>
+      <tbody id="corpo-tabela"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const form = document.getElementById("form-upload");
+    const statusEl = document.getElementById("status");
+    const painel = document.getElementById("painel-resultado");
+    const resumo = document.getElementById("resumo");
+    const corpo = document.getElementById("corpo-tabela");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const input = document.getElementById("arquivo");
+      if (!input.files.length) return;
+
+      statusEl.textContent = "Enviando…";
+      statusEl.className = "";
+      painel.hidden = true;
+      corpo.innerHTML = "";
+
+      const body = new FormData();
+      body.append("arquivo", input.files[0]);
+
+      try {
+        const resp = await fetch("/validar", { method: "POST", body });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(text || resp.statusText);
+        }
+        const data = await resp.json();
+        statusEl.textContent = "Validação concluída.";
+        statusEl.className = "ok";
+        resumo.textContent = "Total a receber: " + (data.total_a_receber ?? "—");
+        (data.notas || []).forEach((nota) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML =
+            "<td>" + (nota.linha ?? "") + "</td>" +
+            "<td>" + (nota.status ?? "") + "</td>" +
+            "<td>" + (nota.motivo ?? "") + "</td>" +
+            "<td>" + (nota.valor_liquido ?? "") + "</td>";
+          corpo.appendChild(tr);
+        });
+        painel.hidden = false;
+      } catch (err) {
+        statusEl.textContent = "Erro: " + err.message;
+        statusEl.className = "erro";
+      }
+    });
+  </script>
+</body>
+</html>
