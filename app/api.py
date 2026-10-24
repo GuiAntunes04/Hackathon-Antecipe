@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 from uuid import uuid4
 
 import structlog
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.config import carregar_config
 from app.logging_setup import configurar_logging
-from app import lote_cache, mock_validacao, pipeline
+from app import lote_cache, pipeline
 from app.rules import aquecer_cache_validacao
+from app.situacao_sacados import garantir_arquivo_situacao, incorporar_sacados_do_csv
 
 logger = structlog.get_logger(__name__)
 
@@ -32,15 +32,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.config = config
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     lote_cache.garantir_diretorio()
-    situacao = DATA_DIR / "situacao_sacados.csv"
-    if not situacao.is_file():
-        situacao = Path("data/situacao_sacados.csv")
-    aquecer_cache_validacao(config.caminho_validadores, situacao if situacao.is_file() else None)
+    situacao = garantir_arquivo_situacao()
+    aquecer_cache_validacao(config.caminho_validadores, situacao)
     logger.info(
         "aplicacao_iniciada",
         data_base=config.data_base.isoformat(),
         caminho_validadores=str(config.caminho_validadores),
-        mock_validacao=config.mock_validacao,
+        situacao_sacados=str(situacao) if situacao else None,
     )
     yield
 
@@ -75,49 +73,13 @@ def saude() -> JSONResponse:
 
 @app.get("/", response_model=None)
 def tela() -> Response:
-    """Serve a tela de upload e resultados."""
-    config = app.state.config
-    index_path = STATIC_DIR / "index.html"
-    if not config.mock_validacao:
-        return FileResponse(index_path)
-
-    html = index_path.read_text(encoding="utf-8")
-    payload = json.dumps(mock_validacao.resultado_simulado(), ensure_ascii=False)
-    payload = payload.replace("</", "<\\/")
-    injecao = (
-        f'<script id="antecipe-demo-data" type="application/json">{payload}</script>\n'
-    )
-    if "</body>" in html:
-        html = html.replace("</body>", injecao + "</body>", 1)
-    else:
-        html = html + injecao
-
-    return HTMLResponse(
-        content=html,
-        headers={"Cache-Control": "no-store"},
-    )
-
-
-@app.get("/validar/demo")
-def validar_demo() -> JSONResponse:
-    """Retorna lote mock para a tela iniciar preenchida (somente com MOCK_VALIDACAO)."""
-    config = app.state.config
-    if not config.mock_validacao:
-        raise HTTPException(status_code=404, detail="Demo indisponível")
-    logger.info("validar_demo")
-    return JSONResponse(content=mock_validacao.resultado_simulado())
+    """Serve a tela de upload e resultados (sempre pipeline real no upload)."""
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.post("/validar")
-async def validar(
-    arquivo: UploadFile = File(...),
-    pagina: int = Query(1, ge=1),
-    tamanho_pagina: int = Query(
-        lote_cache.TAMANHO_PAGINA_PADRAO, ge=1, le=500
-    ),
-    status: str | None = Query(None, description="todas | aprovada | recusada"),
-) -> JSONResponse:
-    """Valida o CSV inteiro, persiste o lote e devolve a página solicitada."""
+async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
+    """Valida o CSV inteiro de uma vez, persiste o lote e devolve todas as notas."""
     config = app.state.config
 
     conteudo = await arquivo.read()
@@ -131,26 +93,19 @@ async def validar(
         "validar_solicitado",
         nome_arquivo=arquivo.filename,
         content_type=arquivo.content_type,
-        pagina=pagina,
-        tamanho_pagina=tamanho_pagina,
-        status=status,
     )
 
     try:
         destino.write_bytes(conteudo)
+        caminho_situacao = incorporar_sacados_do_csv(destino)
         resultado = pipeline.validar_arquivo_csv(
             caminho_csv=destino,
             caminho_validadores=config.caminho_validadores,
             data_base=config.data_base,
+            caminho_situacao=caminho_situacao,
         )
         job_id = lote_cache.salvar_lote(resultado)
-        resposta = lote_cache.resposta_pagina_lote(
-            resultado,
-            job_id,
-            pagina=pagina,
-            tamanho_pagina=tamanho_pagina,
-            filtro_status=status,
-        )
+        resposta = lote_cache.resposta_lote_completo(resultado, job_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
@@ -159,43 +114,27 @@ async def validar(
         destino.unlink(missing_ok=True)
 
     logger.info(
-        "validar_pagina",
+        "validar_concluido",
         job_id=job_id,
-        pagina=resposta["paginacao"]["pagina"],
-        total_paginas=resposta["paginacao"]["total_paginas"],
+        total_notas=resposta["paginacao"]["total_linhas"],
     )
     return JSONResponse(content=resposta)
 
 
 @app.get("/validar/lote/{job_id}")
-def validar_lote_pagina(
-    job_id: str,
-    pagina: int = Query(1, ge=1),
-    tamanho_pagina: int = Query(
-        lote_cache.TAMANHO_PAGINA_PADRAO, ge=1, le=500
-    ),
-    status: str | None = Query(None, description="todas | aprovada | recusada"),
-) -> JSONResponse:
-    """Devolve uma página de notas já validadas do lote."""
+def validar_lote(job_id: str) -> JSONResponse:
+    """Devolve o lote completo já validado."""
     try:
         lote = lote_cache.carregar_lote(job_id)
-        resposta = lote_cache.resposta_pagina_lote(
-            lote,
-            job_id,
-            pagina=pagina,
-            tamanho_pagina=tamanho_pagina,
-            filtro_status=status,
-        )
+        resposta = lote_cache.resposta_lote_completo(lote, job_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     logger.info(
-        "validar_lote_pagina",
+        "validar_lote_lido",
         job_id=job_id,
-        pagina=resposta["paginacao"]["pagina"],
-        total_paginas=resposta["paginacao"]["total_paginas"],
-        filtro_status=resposta.get("filtro_status"),
+        total_notas=resposta["paginacao"]["total_linhas"],
     )
     return JSONResponse(content=resposta)

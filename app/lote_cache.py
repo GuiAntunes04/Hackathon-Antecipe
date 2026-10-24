@@ -1,4 +1,4 @@
-"""Persistência de resultados de validação para paginação na API."""
+"""Persistência de resultados de validação (lote completo na API)."""
 
 from __future__ import annotations
 
@@ -97,6 +97,27 @@ def filtrar_notas_por_status(notas: list[Any], filtro: str) -> list[Any]:
     return [n for n in notas if str(n.get("status", "")).lower() == alvo]
 
 
+def resposta_lote_completo(lote: dict[str, Any], job_id: str) -> dict[str, Any]:
+    """Devolve todas as notas validadas (sem fatiar na API)."""
+    notas = lote.get("notas") or []
+    resumo = lote.get("resumo") or {}
+    total = len(notas)
+    return {
+        "job_id": job_id,
+        "data_base": lote.get("data_base"),
+        "resumo": resumo,
+        "total_a_receber": lote.get("total_a_receber"),
+        "filtro_status": FILTRO_TODAS,
+        "paginacao": {
+            "pagina": 1,
+            "tamanho_pagina": total if total else TAMANHO_PAGINA_PADRAO,
+            "total_paginas": 1,
+            "total_linhas": total,
+        },
+        "notas": notas,
+    }
+
+
 def resposta_pagina_lote(
     lote: dict[str, Any],
     job_id: str,
@@ -104,6 +125,7 @@ def resposta_pagina_lote(
     tamanho_pagina: int = TAMANHO_PAGINA_PADRAO,
     filtro_status: str | None = None,
 ) -> dict[str, Any]:
+    """Fatia notas (uso interno / testes; API expõe lote completo)."""
     notas = lote.get("notas") or []
     resumo = lote.get("resumo") or {}
     filtro = normalizar_filtro_status(filtro_status)

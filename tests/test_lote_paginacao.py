@@ -28,7 +28,7 @@ def test_resposta_pagina_fatia_notas() -> None:
     assert pag3["notas"][-1]["linha"] == 25
 
 
-def test_post_validar_retorna_job_id_e_pagina(monkeypatch, tmp_path) -> None:
+def test_post_validar_retorna_lote_completo(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("MOCK_VALIDACAO", "false")
     monkeypatch.setattr(lote_cache, "LOTE_DIR", tmp_path / "lotes")
 
@@ -36,7 +36,7 @@ def test_post_validar_retorna_job_id_e_pagina(monkeypatch, tmp_path) -> None:
     with TestClient(app) as client:
         with caminho.open("rb") as fh:
             resp = client.post(
-                "/validar?pagina=1&tamanho_pagina=10",
+                "/validar",
                 files={"arquivo": ("notas_exemplo.csv", fh, "text/csv")},
             )
     assert resp.status_code == 200
@@ -45,9 +45,10 @@ def test_post_validar_retorna_job_id_e_pagina(monkeypatch, tmp_path) -> None:
     assert body["resumo"]["total_linhas"] == 6
     assert len(body["notas"]) == 6
     assert body["paginacao"]["total_paginas"] == 1
+    assert body["paginacao"]["total_linhas"] == 6
 
 
-def test_get_lote_pagina_dois(monkeypatch, tmp_path) -> None:
+def test_get_lote_retorna_todas_notas(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("MOCK_VALIDACAO", "false")
     monkeypatch.setattr(lote_cache, "LOTE_DIR", tmp_path / "lotes")
 
@@ -62,11 +63,25 @@ def test_get_lote_pagina_dois(monkeypatch, tmp_path) -> None:
     )
 
     with TestClient(app) as client:
-        resp = client.get(f"/validar/lote/{job_id}?pagina=2&tamanho_pagina=10")
+        resp = client.get(f"/validar/lote/{job_id}")
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["notas"]) == 5
-    assert body["notas"][0]["linha"] == 11
+    assert len(body["notas"]) == 15
+    assert body["notas"][0]["linha"] == 1
+    assert body["notas"][-1]["linha"] == 15
+
+
+def test_resposta_lote_completo() -> None:
+    lote = {
+        "data_base": "2026-10-22",
+        "resumo": {"total_linhas": 3, "aprovadas": 1, "recusadas": 2},
+        "total_a_receber": 50.0,
+        "notas": [{"linha": 1}, {"linha": 2}, {"linha": 3}],
+    }
+    out = lote_cache.resposta_lote_completo(lote, "job1")
+    assert len(out["notas"]) == 3
+    assert out["paginacao"]["total_linhas"] == 3
+    assert out["paginacao"]["total_paginas"] == 1
 
 
 def test_filtro_aprovadas_reduz_paginacao() -> None:
