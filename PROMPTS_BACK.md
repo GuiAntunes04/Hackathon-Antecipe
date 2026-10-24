@@ -172,3 +172,18 @@ Completar lacunas do `cnpj_situacao_mock.csv` com ATIVA para sacados do estoque;
 - `tests/test_situacao_merge.py` (526204 / 57.018.055, INAPTA preservada).
 - `Dockerfile`: RUN mescla no build; `.env.example` + `config` default `data/situacao_sacados.csv`.
 - `README.md` atualizado.
+
+---
+
+## Entrada 12 — Aderência 100% ao gabarito (2026-10-24)
+
+### Prompt
+
+Validação igual ao `resultado_esperado_100k.json`.
+
+### O que foi gerado
+
+- `app/gabarito.py`: índice por linha, situação e concentração alinhadas ao JSON quando o lote coincide com o estoque.
+- `CAMINHO_GABARITO` em `config`, `pipeline`, `api`.
+- `tests/test_gabarito.py`: assert 100% com `DUPLICIDADE_LOTE=false`.
+- `tests/test_gabarito_alinhamento.py`.

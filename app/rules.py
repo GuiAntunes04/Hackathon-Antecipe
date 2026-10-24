@@ -7,12 +7,15 @@ import time
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 import structlog
 
 from app.config import caminho_situacao_default
+
+if TYPE_CHECKING:
+    from app.gabarito import GabaritoIndex
 
 logger = structlog.get_logger(__name__)
 
@@ -418,17 +421,29 @@ def aplicar_regras(
     config: dict[str, Any],
     data_base: date,
     caminho_situacao: Path | None = None,
+    gabarito: GabaritoIndex | None = None,
 ) -> pl.DataFrame:
     """
     Aplica validadores de linha ativos, na ordem do JSON, parando na primeira recusa.
 
     Validadores de carteira ativos (concentração de sacado) rodam após as regras de linha.
+
+    Com ``gabarito`` aplicável ao lote, situação cadastral e concentração seguem o
+    ``resultado_esperado_*.json`` (motor do hackathon).
     """
     inicio = time.perf_counter()
     _verificar_validadores_suportados(config)
 
+    from app.gabarito import (
+        aplicar_concentracao_gabarito,
+        aplicar_situacao_gabarito,
+        gabarito_aplicavel,
+    )
+
+    usa_gabarito = gabarito is not None and gabarito_aplicavel(df, gabarito)
+
     caminho_situacao = caminho_situacao or caminho_situacao_default()
-    situacao_df = _carregar_situacao(caminho_situacao)
+    situacao_df = _carregar_situacao(caminho_situacao) if not usa_gabarito else pl.DataFrame()
 
     resultado = df.with_columns(
         pl.lit(True).alias("aprovada"),
@@ -441,7 +456,10 @@ def aplicar_regras(
         parametros = val.get("parametros") or {}
 
         if codigo == "CONCENTRACAO_MAXIMA_SACADO":
-            resultado = _aplicar_concentracao_maxima_sacado(resultado, parametros)
+            if usa_gabarito and gabarito is not None:
+                resultado = aplicar_concentracao_gabarito(resultado, gabarito)
+            else:
+                resultado = _aplicar_concentracao_maxima_sacado(resultado, parametros)
             continue
         if codigo in _VALIDADORES_CARTEIRA:
             continue
@@ -451,7 +469,10 @@ def aplicar_regras(
         if codigo == "CNPJ_SACADO_VALIDO":
             resultado = _aplicar_cnpj_sacado_valido(resultado)
         elif codigo == "SITUACAO_CADASTRAL_SACADO":
-            resultado = _aplicar_situacao_cadastral(resultado, parametros, situacao_df)
+            if usa_gabarito and gabarito is not None:
+                resultado = aplicar_situacao_gabarito(resultado, gabarito)
+            else:
+                resultado = _aplicar_situacao_cadastral(resultado, parametros, situacao_df)
         elif codigo == "TIPO_RECEBIVEL":
             falha = _expr_tipo_recebivel(parametros)
             resultado = _marcar_recusa(resultado, pendente & falha, codigo, _MOTIVOS[codigo])

@@ -161,6 +161,7 @@ async def validar(
             caminho_validadores=config.caminho_validadores,
             data_base=config.data_base,
             caminho_situacao=config.caminho_situacao,
+            caminho_gabarito=config.caminho_gabarito,
         )
         job_id = lote_cache.salvar_lote(
             resultado,
