@@ -15,7 +15,7 @@ import structlog
 from app.config import _parse_bool
 from app.gabarito import carregar_gabarito, gabarito_aplicavel
 from app.pricing import calcular_valor_liquido
-from app.reader import ler_csv_notas
+from app.reader import ler_csv_notas, ler_csv_notas_bytes
 from app.rules import aplicar_regras, carregar_validadores
 
 logger = structlog.get_logger(__name__)
@@ -154,6 +154,24 @@ def _montar_notas(df: pl.DataFrame) -> list[dict[str, Any]]:
     return out.to_dicts()
 
 
+def validar_conteudo_csv(
+    conteudo: bytes,
+    caminho_validadores: Path,
+    data_base: date,
+    caminho_situacao: Path | None = None,
+    caminho_gabarito: Path | None = None,
+) -> dict[str, Any]:
+    """Executa o pipeline a partir dos bytes do CSV (sem I/O em disco)."""
+    df = ler_csv_notas_bytes(conteudo)
+    return _validar_dataframe(
+        df,
+        caminho_validadores=caminho_validadores,
+        data_base=data_base,
+        caminho_situacao=caminho_situacao,
+        caminho_gabarito=caminho_gabarito,
+    )
+
+
 def validar_arquivo_csv(
     caminho_csv: Path,
     caminho_validadores: Path,
@@ -164,9 +182,26 @@ def validar_arquivo_csv(
     """
     Executa reader -> rules -> pricing e monta o resultado agregado.
     """
+    df = ler_csv_notas(caminho_csv)
+    return _validar_dataframe(
+        df,
+        caminho_validadores=caminho_validadores,
+        data_base=data_base,
+        caminho_situacao=caminho_situacao,
+        caminho_gabarito=caminho_gabarito,
+    )
+
+
+def _validar_dataframe(
+    df: pl.DataFrame,
+    *,
+    caminho_validadores: Path,
+    data_base: date,
+    caminho_situacao: Path | None = None,
+    caminho_gabarito: Path | None = None,
+) -> dict[str, Any]:
     inicio = time.perf_counter()
     config = carregar_validadores(caminho_validadores)
-    df = ler_csv_notas(caminho_csv)
     df = df.with_row_index("_idx").with_columns((pl.col("_idx") + 2).alias("linha"))
 
     gabarito = None

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator
-from uuid import uuid4
+from typing import Any, AsyncIterator
 
 import structlog
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -137,6 +137,33 @@ def tela() -> Response:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+def _validar_persistir_lote(
+    conteudo: bytes,
+    *,
+    config: Any,
+    persistencia: PersistenciaLote,
+    nome_arquivo: str,
+) -> tuple[str, dict[str, Any]]:
+    if not config.caminho_situacao.is_file():
+        raise FileNotFoundError(
+            f"Arquivo de situação cadastral não encontrado: {config.caminho_situacao}"
+        )
+    resultado = pipeline.validar_conteudo_csv(
+        conteudo,
+        caminho_validadores=config.caminho_validadores,
+        data_base=config.data_base,
+        caminho_situacao=config.caminho_situacao,
+    )
+    job_id = lote_cache.salvar_lote(
+        resultado,
+        database_url=config.database_url,
+        persistencia=persistencia,
+        nome_arquivo=nome_arquivo,
+    )
+    resposta = lote_cache.resposta_lote_completo(resultado, job_id)
+    return job_id, resposta
+
+
 @app.post("/validar")
 async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
     """Valida o CSV inteiro de uma vez, persiste o lote e devolve todas as notas."""
@@ -147,7 +174,6 @@ async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
         raise HTTPException(status_code=400, detail="Arquivo CSV vazio.")
 
     nome_seguro = Path(arquivo.filename or "upload.csv").name
-    destino = DATA_DIR / f"{uuid4().hex}_{nome_seguro}"
 
     logger.info(
         "validar_solicitado",
@@ -156,30 +182,17 @@ async def validar(arquivo: UploadFile = File(...)) -> JSONResponse:
     )
 
     try:
-        destino.write_bytes(conteudo)
-        if not config.caminho_situacao.is_file():
-            raise FileNotFoundError(
-                f"Arquivo de situação cadastral não encontrado: {config.caminho_situacao}"
-            )
-        resultado = pipeline.validar_arquivo_csv(
-            caminho_csv=destino,
-            caminho_validadores=config.caminho_validadores,
-            data_base=config.data_base,
-            caminho_situacao=config.caminho_situacao,
-        )
-        job_id = lote_cache.salvar_lote(
-            resultado,
-            database_url=config.database_url,
+        job_id, resposta = await asyncio.to_thread(
+            _validar_persistir_lote,
+            conteudo,
+            config=config,
             persistencia=persistencia_lote_efetiva(app),
             nome_arquivo=nome_seguro,
         )
-        resposta = lote_cache.resposta_lote_completo(resultado, job_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    finally:
-        destino.unlink(missing_ok=True)
 
     logger.info(
         "validar_concluido",

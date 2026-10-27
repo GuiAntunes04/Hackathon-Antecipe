@@ -173,37 +173,5 @@ def resposta_lote_completo_job(
     """Recarrega o lote inteiro (JSON ou Postgres) para GET /validar/lote."""
     if persistencia == "json":
         return resposta_lote_completo(carregar_lote(job_id), job_id)
-    amostra = lote_repository.pagina_lote_postgres(
-        database_url,
-        job_id,
-        pagina=1,
-        tamanho_pagina=1,
-        filtro_status=FILTRO_TODAS,
-    )
-    total = amostra["paginacao"]["total_linhas"]
-    if total <= 0:
-        return resposta_lote_completo(
-            {
-                "data_base": amostra.get("data_base"),
-                "resumo": amostra.get("resumo"),
-                "total_a_receber": amostra.get("total_a_receber"),
-                "notas": [],
-            },
-            job_id,
-        )
-    pagina_unica = lote_repository.pagina_lote_postgres(
-        database_url,
-        job_id,
-        pagina=1,
-        tamanho_pagina=total,
-        filtro_status=FILTRO_TODAS,
-    )
-    return resposta_lote_completo(
-        {
-            "data_base": pagina_unica.get("data_base"),
-            "resumo": pagina_unica.get("resumo"),
-            "total_a_receber": pagina_unica.get("total_a_receber"),
-            "notas": pagina_unica.get("notas") or [],
-        },
-        job_id,
-    )
+    lote = lote_repository.carregar_lote_completo_postgres(database_url, job_id)
+    return resposta_lote_completo(lote, job_id)
