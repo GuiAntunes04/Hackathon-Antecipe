@@ -23,17 +23,25 @@ import {
 import {
   htmlBarraAbas,
   registrarSacadoRecente,
+  sincronizarComboboxSacadoDashboard,
   vincularComboboxSacadoDashboard,
 } from "./dashboard/dashboard-sacado-combobox.js";
 import { htmlTabFinanceiro } from "./dashboard/tab-financial.js";
 import { htmlTabRecusadas } from "./dashboard/tab-rejected.js";
 import {
+  garantirTableRootNoPainel,
   guardarTableRootForaDoDashboard,
   htmlTabNotas,
   montarTabelaNoDashboard,
 } from "./dashboard/tab-notes.js";
 
-export { resetDashboardSlide, registrarSacadoRecente, vincularComboboxSacadoDashboard };
+export {
+  garantirTableRootNoPainel,
+  guardarTableRootForaDoDashboard,
+  resetDashboardSlide,
+  registrarSacadoRecente,
+  vincularComboboxSacadoDashboard,
+};
 
 /**
  * @param {HTMLElement} container
@@ -101,5 +109,6 @@ export async function renderDashboardResumo(container, data) {
   const panel = container.querySelector(".dashboard-panel");
   if (panel) vincularAbasDashboard(panel);
   vincularComboboxSacadoDashboard(container);
+  sincronizarComboboxSacadoDashboard(container);
   aplicarTabDashboard(container, tabAtivo);
 }

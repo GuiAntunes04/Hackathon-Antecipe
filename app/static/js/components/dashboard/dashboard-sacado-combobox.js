@@ -332,6 +332,20 @@ function limparRascunhoSacado(ctx) {
   ctx.input.placeholder = aplicados.length ? "" : t("dashboard.searchDraweePlaceholder");
 }
 
+/** @param {ReturnType<typeof obterComboboxSacado>} ctx */
+function atualizarVisibilidadeLimparSacado(ctx) {
+  if (!ctx?.clearBtn) return;
+  ctx.clearBtn.hidden = lerSacadosAplicados(ctx).length === 0;
+}
+
+/** @param {HTMLElement} dashboardHost */
+export function sincronizarComboboxSacadoDashboard(dashboardHost) {
+  const combobox = dashboardHost?.querySelector(".sacado-combobox");
+  if (!(combobox instanceof HTMLElement)) return;
+  const ctx = obterComboboxSacado(combobox);
+  if (ctx) atualizarVisibilidadeLimparSacado(ctx);
+}
+
 /** @param {HTMLElement} dashboardHost @param {string[]} sacados */
 function emitirSacadosAlterados(dashboardHost, sacados) {
   dashboardHost.dispatchEvent(
@@ -377,6 +391,7 @@ export function vincularComboboxSacadoDashboard(dashboardHost) {
     const ctx = obterComboboxSacado(combobox);
     if (!ctx) return;
     if (blurTimer) clearTimeout(blurTimer);
+    atualizarVisibilidadeLimparSacado(ctx);
     abrirListaSacadoSeAplicavel(ctx, input);
   });
 
@@ -387,6 +402,7 @@ export function vincularComboboxSacadoDashboard(dashboardHost) {
     if (!(combobox instanceof HTMLElement)) return;
     const ctx = obterComboboxSacado(combobox);
     if (!ctx) return;
+    atualizarVisibilidadeLimparSacado(ctx);
     abrirListaSacadoSeAplicavel(ctx, input);
   });
 

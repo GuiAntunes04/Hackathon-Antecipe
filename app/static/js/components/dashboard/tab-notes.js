@@ -7,9 +7,27 @@ export function htmlTabNotas() {
 }
 
 /** @param {HTMLElement} container */
+/** Garante `#table-root` no DOM (evita perda ao limpar o dashboard na home). */
+export function garantirTableRootNoPainel() {
+  const panel = document.getElementById("results-panel");
+  if (!panel) return null;
+
+  let tableEl = document.getElementById("table-root");
+  if (!tableEl) {
+    tableEl = document.createElement("div");
+    tableEl.id = "table-root";
+    tableEl.className = "panel panel--full-bleed-mobile hidden";
+    tableEl.hidden = true;
+    panel.appendChild(tableEl);
+  } else if (!panel.contains(tableEl)) {
+    panel.appendChild(tableEl);
+  }
+  return tableEl;
+}
+
 /** @param {HTMLElement} dashboardContainer */
 export function guardarTableRootForaDoDashboard(dashboardContainer) {
-  const tableEl = document.getElementById("table-root");
+  const tableEl = garantirTableRootNoPainel();
   if (!tableEl || !dashboardContainer.contains(tableEl)) return;
   const panel = document.getElementById("results-panel");
   if (panel) panel.appendChild(tableEl);
@@ -17,7 +35,7 @@ export function guardarTableRootForaDoDashboard(dashboardContainer) {
 
 export function montarTabelaNoDashboard(container) {
   const mount = container.querySelector("#dashboard-table-mount");
-  const tableEl = document.getElementById("table-root");
+  const tableEl = garantirTableRootNoPainel();
   if (!mount || !tableEl) return;
   tableEl.classList.remove("hidden");
   tableEl.removeAttribute("hidden");

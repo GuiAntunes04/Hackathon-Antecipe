@@ -17,6 +17,7 @@ export function htmlTabFinanceiro(fin, serieMeses, sacadosFiltrados = []) {
           <header class="dashboard-financeiro__hero">
             <p class="dashboard-financeiro__hero-label">${t("dashboard.totalReceive")}${sufixoSacados}</p>
             <p class="dashboard-financeiro__hero-value tabular-nums">${escapeHtml(fin.totalReceber)}</p>
+            <p class="dashboard-financeiro__hero-hint">${t("dashboard.totalReceiveHint")}</p>
           </header>
           <div class="dashboard-financeiro__body">
           <div class="dashboard-financeiro__totals">

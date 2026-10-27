@@ -106,7 +106,7 @@ app.add_middleware(_StaticCacheMiddleware)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-HERO_FUNDO_ARQUIVO = STATIC_DIR / "img" / "hero-mountains.png"
+HERO_FUNDO_ARQUIVO = STATIC_DIR / "img" / "brand" / "kanastra-pattern-reference_reference1-digital.png"
 HERO_FUNDO_PATH = (
     "/image/attachment%3A747c3084-f408-402e-9244-6dcadc901e40%3Aimage.png"
 )

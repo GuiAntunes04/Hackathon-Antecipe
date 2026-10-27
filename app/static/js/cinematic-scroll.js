@@ -19,23 +19,6 @@ let headerFadeTimeout = null;
 /** @type {boolean | null} */
 let headerFadeTarget = null;
 
-/** Rolagem do header de resultados (ocultar ↓ / mostrar ↑). */
-const RESULTS_HEADER_TOP_EPS = 16;
-const RESULTS_HEADER_HIDE_ACC = 28;
-const RESULTS_HEADER_SHOW_ACC = 16;
-
-/** @type {number} */
-let resultsHeaderLastScrollY = 0;
-
-/** @type {number} */
-let resultsHeaderDownAcc = 0;
-
-/** @type {number} */
-let resultsHeaderUpAcc = 0;
-
-/** @type {boolean} */
-let resultsHeaderIsHidden = false;
-
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -81,17 +64,6 @@ export function cinematicRefresh() {
   lenis?.resize();
   const y = getScrollY();
   syncPortalHeaderAside(y);
-  syncResultsHeaderOnScroll(y);
-}
-
-/** Garante header de resultados visível (ex.: ao entrar na tela). */
-export function resetResultsHeaderScroll() {
-  const header = document.querySelector(".portal-results-header");
-  header?.classList.remove("portal-results-header--hidden");
-  resultsHeaderIsHidden = false;
-  resultsHeaderDownAcc = 0;
-  resultsHeaderUpAcc = 0;
-  resultsHeaderLastScrollY = getScrollY();
 }
 
 /**
@@ -108,6 +80,16 @@ export function scrollToPortalAnchor(anchor) {
     lenis.scrollTo(y, { immediate: false });
   } else {
     window.scrollTo({ top: y, behavior: "smooth" });
+  }
+}
+
+/** @param {number} [y] */
+export function scrollToTop(y = 0) {
+  const next = Math.max(0, y);
+  if (lenis && typeof lenis.scrollTo === "function") {
+    lenis.scrollTo(next, { immediate: true });
+  } else {
+    window.scrollTo(0, next);
   }
 }
 
@@ -188,50 +170,6 @@ function syncPortalHeaderAside(scrollY) {
   transitionHeaderAside(scrollY > PORTAL_HEADER_TOP_EPS);
 }
 
-/** @param {number} scrollY */
-function syncResultsHeaderOnScroll(scrollY) {
-  const header = document.querySelector(".portal-results-header");
-  if (!header) return;
-
-  if (!document.body.classList.contains("portal-screen-results")) {
-    header.classList.remove("portal-results-header--hidden");
-    resultsHeaderIsHidden = false;
-    resultsHeaderLastScrollY = scrollY;
-    return;
-  }
-
-  const delta = scrollY - resultsHeaderLastScrollY;
-  resultsHeaderLastScrollY = scrollY;
-
-  if (scrollY <= RESULTS_HEADER_TOP_EPS) {
-    resultsHeaderDownAcc = 0;
-    resultsHeaderUpAcc = 0;
-    if (resultsHeaderIsHidden) {
-      header.classList.remove("portal-results-header--hidden");
-      resultsHeaderIsHidden = false;
-    }
-    return;
-  }
-
-  if (delta > 0) {
-    resultsHeaderDownAcc += delta;
-    resultsHeaderUpAcc = 0;
-    if (!resultsHeaderIsHidden && resultsHeaderDownAcc >= RESULTS_HEADER_HIDE_ACC) {
-      header.classList.add("portal-results-header--hidden");
-      resultsHeaderIsHidden = true;
-      resultsHeaderDownAcc = 0;
-    }
-  } else if (delta < 0) {
-    resultsHeaderUpAcc += -delta;
-    resultsHeaderDownAcc = 0;
-    if (resultsHeaderIsHidden && resultsHeaderUpAcc >= RESULTS_HEADER_SHOW_ACC) {
-      header.classList.remove("portal-results-header--hidden");
-      resultsHeaderIsHidden = false;
-      resultsHeaderUpAcc = 0;
-    }
-  }
-}
-
 /**
  * @param {number} [scrollOverride]
  */
@@ -244,7 +182,6 @@ function updateScrollProgress(scrollOverride) {
     bar.style.setProperty("--scroll-progress", String(Math.min(1, Math.max(0, prog))));
   }
   syncPortalHeaderAside(y);
-  syncResultsHeaderOnScroll(y);
 }
 
 /**
@@ -298,7 +235,6 @@ export async function initCinematicScroll() {
       lenis?.raf(time);
       const y = getScrollY();
       syncPortalHeaderAside(y);
-      syncResultsHeaderOnScroll(y);
       requestAnimationFrame(raf);
     }
     requestAnimationFrame(raf);

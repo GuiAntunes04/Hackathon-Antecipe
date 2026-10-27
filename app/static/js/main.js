@@ -2,14 +2,15 @@ import {
   cinematicRefresh,
   initCinematicScroll,
   observeCinematic,
-  resetResultsHeaderScroll,
-  scrollToPortalAnchor,
+  scrollToTop,
   setSmoothScrollActive,
 } from "./cinematic-scroll.js";
 import { postValidar } from "./api/validacao.js";
 import { mountUploadPanel } from "./components/upload-panel.js";
 import { createNotesTableController } from "./components/notes-table-controller.js?v=20261024ac";
 import {
+  guardarTableRootForaDoDashboard,
+  garantirTableRootNoPainel,
   renderDashboardResumo,
   resetDashboardSlide,
   vincularComboboxSacadoDashboard,
@@ -119,7 +120,8 @@ function rotularTitulos() {
   document.title = title;
   if (portalHomeTitle) portalHomeTitle.textContent = title;
   if (portalResultsTitle) portalResultsTitle.textContent = title;
-  if (btnNovoLote) btnNovoLote.textContent = t("upload.newBatch");
+  const backLabel = btnNovoLote?.querySelector(".portal-results-header__back-label");
+  if (backLabel) backLabel.textContent = t("upload.newBatch");
 }
 
 /**
@@ -130,11 +132,29 @@ function rotularTitulos() {
 function setStatus(message, variant = "", kind = null) {
   loteAtual.statusKind = kind;
   if (!statusEl) return;
-  statusEl.textContent = message;
+
+  const validating = kind === "validating" && Boolean(message);
+  document.body.classList.toggle("portal-home-validating", validating);
+
   if (!message) {
+    statusEl.textContent = "";
     statusEl.className = "portal-home__status empty:hidden";
     return;
   }
+
+  if (validating) {
+    statusEl.className = "portal-home__status portal-home__status--validating";
+    const spin = document.createElement("span");
+    spin.className = "portal-home__spinner";
+    spin.setAttribute("aria-hidden", "true");
+    const text = document.createElement("span");
+    text.className = "portal-home__status-text";
+    text.textContent = message;
+    statusEl.replaceChildren(spin, text);
+    return;
+  }
+
+  statusEl.textContent = message;
   const onHome = document.body.classList.contains("portal-screen-home");
   const palette = onHome ? STATUS_VARIANTS_ON_HOME : STATUS_VARIANTS;
   const styles = palette[variant] || palette.secondary;
@@ -165,6 +185,7 @@ async function showHomeScreen() {
   if (portalScreenTransitionLock) return;
   portalScreenTransitionLock = true;
 
+  document.body.classList.remove("portal-home-leaving");
   document.body.classList.add("portal-screen-home");
   document.body.classList.remove("has-resultado-bar");
   document.body.classList.remove("portal-screen-results");
@@ -176,8 +197,9 @@ async function showHomeScreen() {
 
   resetLoteState();
   setStatus("", "");
+  guardarTableRootForaDoDashboard(dashboardRoot);
+  garantirTableRootNoPainel();
   dashboardRoot.innerHTML = "";
-  resetResultsHeaderScroll();
   posicionarLangSwitcher();
   portalScreenTransitionLock = false;
 }
@@ -189,6 +211,7 @@ async function showResultsScreen() {
   document.body.classList.remove("portal-screen-home");
   document.body.classList.add("has-resultado-bar");
   document.body.classList.add("portal-screen-results");
+  document.body.classList.add("portal-home-leaving");
   syncScreenA11y();
   unlockResultsScroll();
 
@@ -197,8 +220,7 @@ async function showResultsScreen() {
   portalScreenTransitionLock = false;
   posicionarLangSwitcher();
   requestAnimationFrame(() => {
-    resetResultsHeaderScroll();
-    scrollToPortalAnchor(document.querySelector(".portal-results-header"));
+    scrollToTop(0);
     cinematicRefresh();
   });
 }
@@ -291,7 +313,7 @@ async function renderizarDashboard() {
 /** @param {{ carregando?: boolean, novoLote?: boolean }} [opts] */
 function sincronizarResultadosLote(opts = {}) {
   if (opts.novoLote) {
-    resetDashboardSlide();
+    resetDashboardSlide(dashboardRoot);
     tabelaNotas?.reset();
     tabelaNotas = null;
   }

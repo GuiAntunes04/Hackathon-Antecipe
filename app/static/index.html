@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Portal Antecipe</title>
+  <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml" sizes="any" />
+  <meta name="color-scheme" content="light dark" />
   <link href="/static/css/tailwind.css?v=20261024perf" rel="stylesheet" />
 </head>
 <body class="portal-app portal-screen-home min-h-screen text-slate-900 antialiased">
@@ -35,7 +37,10 @@
     <section id="portal-results" class="portal-results" aria-hidden="true" aria-label="Resultados">
       <header class="portal-results-header">
         <div class="portal-results-header__inner portal-results__inset mx-auto w-full max-w-screen-2xl">
-          <button type="button" id="btn-novo-lote" class="portal-results-header__back"></button>
+          <button type="button" id="btn-novo-lote" class="portal-results-header__back">
+            <span class="portal-results-header__back-arrow" aria-hidden="true">←</span>
+            <span class="portal-results-header__back-label"></span>
+          </button>
           <div class="portal-results-header__brand">
             <img
               src="/static/img/brand/logo-reduzida.svg"
@@ -69,7 +74,7 @@
     </section>
   </main>
 
-  <link href="/static/css/main.css?v=20261024ad" rel="stylesheet" />
+  <link href="/static/css/main.css?v=20261027ai" rel="stylesheet" />
   <script type="module" src="/static/js/main.js?v=20261024ad"></script>
 </body>
 </html>

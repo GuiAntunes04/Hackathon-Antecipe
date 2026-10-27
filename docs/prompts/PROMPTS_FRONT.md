@@ -1570,3 +1570,781 @@ Suporte à coluna nominal e testes de precificação quando vencimento &lt; data
 ### Teste manual
 
 1. `pytest tests/test_pricing.py tests/test_api_validar.py -q`.
+
+---
+
+## Entrada 75 — Padding padronizado do mount da tabela (2026-10-26)
+
+### Prompt (resumo)
+
+`dashboard-table-mount` → padding padronizado de `0.2rem`.
+
+### O que mudou
+
+- **`main.css`:** `.dashboard-table-mount` com `padding: 0.2rem`.
+- Overrides (aba Notas, mobile, slide da tabela) alinhados ao mesmo valor; padding de `#table-root` permanece o anterior.
+
+### Teste manual
+
+1. Aba Notas no desktop e no mobile → espaçamento uniforme em volta do mount da tabela.
+
+---
+
+## Entrada 76 — Novo lote destruía `#table-root` (2026-10-26)
+
+### Prompt (resumo)
+
+Por que, ao clicar em Novo lote, a aba de notas some? Aplicar o resgate do `#table-root` e registrar as mudanças de front.
+
+### Causa
+
+Após o primeiro lote, `montarTabelaNoDashboard` move `#table-root` para dentro de `#dashboard-root`. `showHomeScreen()` fazia `dashboardRoot.innerHTML = ""` sem `guardarTableRootForaDoDashboard`, apagando o nó. No segundo lote o mount da aba Notas ficava vazio.
+
+### O que mudou
+
+- **`dashboard-resumo.js`:** reexporta `guardarTableRootForaDoDashboard`.
+- **`main.js`:** em `showHomeScreen()`, move `#table-root` de volta para `#results-panel` antes de limpar o dashboard.
+
+### Teste manual
+
+1. Validar um CSV → aba **Notas** com tabela.
+2. **Novo lote** → outro CSV → aba **Notas** ainda mostra a tabela do novo lote.
+
+---
+
+## Entrada 77 — Botão Novo lote mais simples (2026-10-26)
+
+### Prompt (resumo)
+
+Alterar o design do botão “Novo lote”: mais simplista, fonte um pouco maior, só seta e texto, underline no hover.
+
+### O que mudou
+
+- **`main.css`:** `.portal-results-header__back` sem pílula (fundo, padding, border-radius); `font-size` 0.9375rem (0.875rem no mobile); hover/focus só com underline.
+- Texto continua `← Novo lote` / `← New batch` em **`i18n.js`**.
+
+### Teste manual
+
+1. Tela de resultados → botão só com seta e texto, sem fundo.
+2. Hover → underline; clique continua voltando à home.
+
+---
+
+## Entrada 78 — Underline animado e tipografia do Novo lote (2026-10-26)
+
+### Prompt (resumo)
+
+Colocar animação no underline, separar mais a seta do texto, engrossar um pouco e deixar a fonte em negrito.
+
+### O que mudou
+
+- **`index.html`:** seta e rótulo em spans separados.
+- **`i18n.js`:** `upload.newBatch` sem a seta (`Novo lote` / `New batch`).
+- **`main.js`:** atualiza só `.portal-results-header__back-label`.
+- **`main.css`:** `font-weight: 700`; seta `800`; gap `0.45em`; underline 2px com `scaleX` no hover/focus (respeita `prefers-reduced-motion`).
+
+### Teste manual
+
+1. Tela de resultados → seta afastada do texto, negrito.
+2. Hover → underline cresce da esquerda; clique volta à home.
+
+---
+
+## Entrada 79 — Fundo kanastra-pattern-reference (2026-10-26)
+
+### Prompt (resumo)
+
+Trocar a imagem de fundo de `hero-mountains` para `kanastra-pattern-reference`, na pasta `img/brand`.
+
+### O que mudou
+
+- **`main.css`:** `--portal-app-bg-image` aponta para `/static/img/brand/kanastra-pattern-reference_reference1-digital.png`.
+- **`api.py`:** rota de compatibilidade do hero serve o mesmo arquivo.
+
+### Teste manual
+
+1. Home e resultados → fundo com o pattern de marca (montanhas com retícula), não o `hero-mountains.png`.
+
+---
+
+## Entrada 80 — Zoom do fundo reduzido (2026-10-26)
+
+### Prompt (resumo)
+
+Reduzir consideravelmente o zoom da imagem de fundo.
+
+### O que mudou
+
+- **`main.css`:** `.portal-app-bg::before` de `inset: -38%` + `scale(1.34)` para `inset: -6%` + `scale(1.05)`; reduced-motion sem zoom extra.
+
+### Teste manual
+
+1. Home → paisagem visível de forma mais aberta, sem recorte tão fechado nas montanhas.
+
+---
+
+## Entrada 81 — Sombra nos elementos da home (2026-10-26)
+
+### Prompt (resumo)
+
+Colocar uma sombra em cada elemento sobre a imagem da página inicial.
+
+### O que mudou
+
+- **`main.css`:** drop-shadow no logo e no ícone de upload; text-shadow no título, rótulo do CSV, filename e status; box-shadow no botão de idioma na home.
+
+### Teste manual
+
+1. Home sobre o fundo → logo, título, upload e globo legíveis, cada um com sombra própria.
+
+---
+
+## Entrada 82 — Zoom no hover do upload (2026-10-26)
+
+### Prompt (resumo)
+
+Aplicar um zoom sempre que acontecer hover no botão de adicionar arquivo.
+
+### O que mudou
+
+- **`main.css`:** `.portal-upload-dropzone:hover` / `:focus-within` com `scale(1.08)` e transição; sem animação se `prefers-reduced-motion`.
+
+### Teste manual
+
+1. Home → passar o mouse no ícone/texto “Arquivo CSV” → o bloco aumenta suavemente.
+
+---
+
+## Entrada 83 — Botão de upload maior (2026-10-26)
+
+### Prompt (resumo)
+
+Deixe o botão maior.
+
+### O que mudou
+
+- **`main.css`:** `.portal-upload-dropzone` com `min-height` 13.5rem e padding maior; ícone 4.25rem; texto 1.125rem.
+
+### Teste manual
+
+1. Home → ícone e rótulo “Arquivo CSV” visivelmente maiores; hover ainda dá zoom.
+
+---
+
+## Entrada 84 — Área de clique do upload (2026-10-26)
+
+### Prompt (resumo)
+
+Reduzir consideravelmente a área de clique do botão, para deixar mais próxima do botão visual.
+
+### O que mudou
+
+- **`main.css`:** dropzone `inline-flex` / `width: fit-content`, sem `min-height` 13.5rem; padding 0.35rem 0.5rem; formulário com `align-items: center`.
+
+### Teste manual
+
+1. Home → clicar só no ícone/texto abre o seletor; clicar ao lado (espaço vazio) não abre.
+
+---
+
+## Entrada 85 — Spinner no lugar do upload (2026-10-26)
+
+### Prompt (resumo)
+
+Desaparecer com o botão quando o arquivo for inserido, substituir por um spin de carregamento, e deixar o texto de validando arquivo maior e centralizado, sem contorno e preenchimento.
+
+### O que mudou
+
+- **`main.js`:** estado `portal-home-validating`; `#status` monta spinner + texto (sem classes de borda/fundo).
+- **`main.css`:** esconde `.portal-upload-dropzone`; status de validação em coluna, texto grande, spinner branco; `prefers-reduced-motion` sem giro.
+
+### Teste manual
+
+1. Home → escolher CSV → botão some, spinner + “Validando arquivo…” centralizados, sem caixa.
+2. Erro de validação → toast e o botão de upload volta.
+
+---
+
+## Entrada 86 — Fade e zoom-out da home (2026-10-26)
+
+### Prompt (resumo)
+
+Sempre que sair ou entrar da página inicial: fade de entrada normal e fade de zoom-out na saída.
+
+### O que mudou
+
+- **`main.css`:** entrada da home só com opacity; saída `portal-home-leaving` com `scale(0.86)` + fade; `portal-home-reset` zera o scale sem animação antes do próximo fade-in.
+- **`main.js`:** liga `portal-home-leaving` ao ir para resultados; reset + fade ao voltar para a home.
+
+### Teste manual
+
+1. Validar CSV → home some em fade com zoom-out; resultados entram em fade.
+2. Novo lote → home reaparece só em fade (sem zoom).
+
+---
+
+## Entrada 87 — Zoom invertido e ease no título (2026-10-27)
+
+### Prompt (resumo)
+
+Inverter o zoom de saída, mudar a entrada para zoom fade também, e aplicar ease nos movimentos do título.
+
+### O que mudou
+
+- **`main.css`:** entrada e saída da home em fade + `scale(1.12)` (amplia na saída, volta de 1.12 na entrada); título com `transform` próprio e `transition: transform 1.04s ease`.
+- **`main.js`:** removido o reset de scale que anulava o zoom na entrada.
+
+### Teste manual
+
+1. Validar CSV → home some ampliando (zoom-in) com fade.
+2. Novo lote → home entra com fade + zoom (de 1.12 para 1); título segue com ease.
+
+---
+
+## Entrada 88 — Cantos arredondados em portal-results__body (2026-10-27)
+
+### Prompt (resumo)
+
+Colocar rounded em `portal-results__body`.
+
+### O que mudou
+
+- **`main.css`:** card em `body.has-resultado-bar .portal-results__body` (fundo branco, sombra, `border-radius`); coluna/painéis internos transparentes para o recorte valer.
+
+### Teste manual
+
+1. Tela de resultados → bloco branco com cantos arredondados e fundo da montanha visível nas laterais.
+
+---
+
+## Entrada 89 — Ajuste visual do rounded em results body (2026-10-27)
+
+### Prompt (resumo)
+
+Rounded em `portal-results__body` não mudou nada visualmente.
+
+### Causa
+
+O branco vinha de `.portal-results-column`, `#results-panel` e `.panel`, não do `__body`; `border-radius` no wrapper transparente não aparecia.
+
+### O que mudou
+
+- **`main.css`:** fundo + sombra no `__body`; filhos transparentes; `overflow: hidden` no card.
+
+### Teste manual
+
+1. Após validar CSV → card de resultados com cantos arredondados perceptíveis.
+
+---
+
+## Entrada 90 — Faixa lateral do fundo nos resultados (2026-10-27)
+
+### Prompt (resumo)
+
+Devolver o padding ou margin que deixava o fundo aparecendo nas laterais.
+
+### Causa
+
+Fundo branco no `portal-results__body` cobria a área do `portal-results__inset` (padding lateral).
+
+### O que mudou
+
+- **`main.css`:** `__body` transparente de novo; card branco + rounded só em `.portal-results-column`, dentro do inset.
+
+### Teste manual
+
+1. Resultados → montanha/pattern visível nas laterais; card branco centralizado no inset.
+
+---
+
+## Entrada 91 — Hint em Total a receber (2026-10-27)
+
+### Prompt (resumo)
+
+Como na aba de recusadas, descritivo em Total a receber: “Soma do valor líquido das notas aceitas”.
+
+### O que mudou
+
+- **`tab-financial.js`:** `.dashboard-financeiro__hero-hint` abaixo do valor.
+- **`i18n.js`:** `dashboard.totalReceiveHint` (pt/en).
+- **`main.css`:** estilo alinhado ao hint de recusadas (tom verde).
+
+### Teste manual
+
+1. Aba financeiro → hint sob o total a receber.
+
+---
+
+## Entrada 92 — Heróis Total a receber / Total perdido (2026-10-27)
+
+### Prompt (resumo)
+
+Ajustar Total a receber e Total perdido para ficarem do mesmo tamanho.
+
+### O que mudou
+
+- **`main.css`:** regras compartilhadas para `.dashboard-financeiro__hero` e `.dashboard-recusadas__hero` (padding, `min-height`, tipografia); removido padding extra só no slide financeiro.
+
+### Teste manual
+
+1. Alternar abas financeiro e recusados → faixas hero com mesma altura e escala de texto.
+
+---
+
+## Entrada 93 — Header preto e Novo lote (2026-10-27)
+
+### Prompt (resumo)
+
+Engrossar seta do Novo lote; cor Portal Antecipe; logo e topo em preto; idioma só globo, sem borda nem preenchimento.
+
+### O que mudou
+
+- **`main.css`:** seta `←` maior/preta via peso e escala; logo home e header resultados `brightness(0)`; título home `rgb(6 78 59)`; `.portal-lang-switch__trigger` transparente, ícone preto (home e mobile no header).
+
+### Teste manual
+
+1. Home → logo preta, título verde Kanastra, globo sem círculo.
+2. Resultados → logo preta no header, Novo lote verde com seta grossa, globo minimalista.
+
+---
+
+## Entrada 94 — Reverter capa; barra superior preta (2026-10-27)
+
+### Prompt (resumo)
+
+Desfazer mudanças da página de capa; toda a fonte da barra acima em preto.
+
+### O que mudou
+
+- **`main.css`:** capa restaurada (logo branca, título branco, pill de idioma); `.portal-results-header__back` e `__brand` com `color: #000` (seta grossa e logo preta no header mantidas).
+
+### Teste manual
+
+1. Home → visual anterior à Entrada 93 na capa.
+2. Resultados → Novo lote, título da marca e globo em preto na barra.
+
+---
+
+## Entrada 95 — Mobile: barra superior vs abas (2026-10-27)
+
+### Prompt (resumo)
+
+Barra superior empurrava cabeçalho de índice e sobre punha abas no mobile.
+
+### O que mudou
+
+- **`main.css`:** `overflow: visible` na coluna de resultados (mobile); sticky só em `.dashboard-tabs` com `--portal-results-header-offset`; fallback de altura do header em CSS.
+- **`cinematic-scroll.js`:** `syncResultsHeaderOffset()` mede o header e atualiza a variável (resize, hide/show do header).
+
+### Teste manual
+
+1. Mobile → resultados → rolar: abas colam logo abaixo da barra superior, sem sobrepor.
+2. Aba Notas → cabeçalho da tabela não invade as abas ao rolar.
+
+---
+
+## Entrada 96 — Sticky único: abas + sacado (mobile) (2026-10-27)
+
+### Prompt (resumo)
+
+Pesquisa por sacado e índice (abas) como um único sticky; índice não ficar atrás do input.
+
+### O que mudou
+
+- **`main.css`:** sticky de volta em `.dashboard-tabs-row` inteira (abas + combobox); abas `z-index: 1` acima do campo de sacado no empilhamento interno.
+
+### Teste manual
+
+1. Mobile → rolar resultados: abas e busca por sacado grudam juntas abaixo do header.
+2. Abas sempre visíveis acima do input ao rolar.
+
+---
+
+## Entrada 97 — Barra superior só no topo (2026-10-27)
+
+### Prompt (resumo)
+
+A barra superior só deve aparecer quando chegar no topo.
+
+### O que mudou
+
+- **`cinematic-scroll.js`:** removido reaparecer ao rolar para cima; header visível apenas com `scrollY ≤` limiar do topo.
+
+### Teste manual
+
+1. Resultados → rolar para baixo: barra some.
+2. Rolar para cima (sem ir ao topo): barra permanece oculta.
+3. Voltar ao topo: barra reaparece; abas sticky ajustam offset.
+
+---
+
+## Entrada 98 — overflow-hidden no card (índice nas bordas) (2026-10-27)
+
+### Prompt (resumo)
+
+`overflow-hidden` no container para o índice não ultrapassar as bordas.
+
+### O que mudou
+
+- **`main.css`:** removido `overflow: visible` mobile em `.portal-results-column` (mantém `overflow: hidden` + `border-radius`); `.dashboard-tabs-row` no mobile sem margens negativas de full-bleed.
+
+### Teste manual
+
+1. Mobile → abas/sacado respeitam cantos arredondados do card branco ao rolar.
+
+---
+
+## Entrada 99 — Reverter full-bleed; overflow só horizontal (2026-10-27)
+
+### Prompt (resumo)
+
+Reverter Entrada 98; aplicar clip/overflow apenas na horizontal.
+
+### O que mudou
+
+- **`main.css`:** `.portal-results-column` com `overflow-x: clip` e `overflow-y: visible`; `.dashboard-tabs-row` mobile com margens negativas de full-bleed restauradas.
+
+### Teste manual
+
+1. Mobile → índice não vaza lateralmente; sticky vertical segue ok.
+
+---
+
+## Entrada 100 — Reverter 99; colapsar header oculto (2026-10-27)
+
+### Prompt (resumo)
+
+Desfazer última alteração; barra superior não deve empurrar índice nem deixar faixa branca.
+
+### O que mudou
+
+- **`main.css`:** volta `overflow: hidden` no card e abas sem full-bleed (como Entrada 98); header oculto com `margin-bottom` negativo via `--portal-results-header-layout-h`.
+- **`cinematic-scroll.js`:** grava altura do header antes de ocultar para o colapso.
+
+### Teste manual
+
+1. Rolar para baixo → sem faixa branca entre topo e abas; índice cola no topo (safe area).
+2. Voltar ao topo → barra e layout normais.
+
+---
+
+## Entrada 101 — Reverter 100; sem colapso (2026-10-27)
+
+### Prompt (resumo)
+
+Desfazer Entrada 100; não usar colapso (`margin-bottom` negativo).
+
+### O que mudou
+
+- Removido colapso do header oculto e `--portal-results-header-layout-h`.
+- Restaurado estado da Entrada 99: `overflow-x: clip` no card, full-bleed das abas no mobile.
+
+---
+
+## Entrada 102 — Rounded no índice (2026-10-27)
+
+### Prompt (resumo)
+
+Aplicar cantos arredondados no índice (barra de abas + sacado).
+
+### O que mudou
+
+- **`main.css`:** `.dashboard-tabs-row` com `border-radius: 0.75rem` no topo (igual ao card); `padding-top: 0` do `#dashboard-root` no mobile para alinhar ao card.
+
+### Teste manual
+
+1. Resultados → topo do card: índice com cantos superiores arredondados.
+
+---
+
+## Entrada 103 — Salto do índice ao ocultar barra (2026-10-27)
+
+### Prompt (resumo)
+
+Ao descer e sumir a barra superior, o índice dava um pequeno salto.
+
+### O que mudou
+
+- **`cinematic-scroll.js`:** `--portal-results-header-offset` sempre usa a altura do header no layout (mesmo oculto).
+- **`main.css`:** removido `sticky-top` reduzido para `safe-top` quando a barra está `--hidden`.
+
+### Teste manual
+
+1. Mobile → rolar para baixo: barra some sem o índice pular.
+
+---
+
+## Entrada 104 — Índice no topo (header fixo mobile) (2026-10-27)
+
+### Prompt (resumo)
+
+Índice não ficava no topo; barra oculta sem salto.
+
+### O que mudou
+
+- **`main.css` (mobile):** header `fixed`; `padding-top` no corpo quando barra visível; sticky do índice em `safe-top` com barra oculta; transição em `top`/`padding-top`.
+- **`cinematic-scroll.js`:** compensação de scroll ao mostrar/ocultar barra (mobile).
+
+### Teste manual
+
+1. Mobile → rolar: índice cola no topo; barra só no scroll=0.
+2. Transição sem salto brusco.
+
+---
+
+## Entrada 105 — Barra fixa simples (2026-10-27)
+
+### Prompt (resumo)
+
+Simplificar: barra superior fixa no topo, sem regras especiais de scroll/ocultar.
+
+### O que mudou
+
+- **`main.css`:** `.portal-results-header` `fixed` em resultados; `padding-top` em `.portal-results` via `--portal-results-header-h`; removido `--hidden` e lógica `:has` de padding/sticky.
+- **`cinematic-scroll.js`:** removidos hide/show, offset JS e compensação de scroll; export `scrollToTop`.
+- **`main.js`:** sem `resetResultsHeaderScroll`; entrada em resultados com `scrollToTop(0)`.
+
+### Teste manual
+
+1. Resultados → barra sempre visível no topo; conteúdo não fica por baixo.
+2. Mobile → índice sticky abaixo da barra (`--portal-results-header-h`).
+
+---
+
+## Entrada 106 — Índice sem rounded; overflow hidden (2026-10-27)
+
+### Prompt (resumo)
+
+Tirar rounded do índice; `overflow-hidden` no container.
+
+### O que mudou
+
+- **`main.css`:** removido `border-radius`/`overflow` de `.dashboard-tabs-row`; `.portal-results-column` com `overflow: hidden`.
+
+---
+
+## Entrada 107 — Sticky do índice (2026-10-27)
+
+### Prompt (resumo)
+
+Sticky do índice não funcionava.
+
+### O que mudou
+
+- **`main.css`:** `.portal-results-column` com `overflow-x: clip` + `overflow-y: visible` ( `overflow: hidden` quebrava sticky ); `#dashboard-root.cinematic-reveal` sem `transform` em resultados.
+
+### Teste manual
+
+1. Mobile → rolar: abas + sacado grudam abaixo da barra fixa.
+
+---
+
+## Entrada 108 — Índice rounded sem contorno (2026-10-27)
+
+### Prompt (resumo)
+
+Rounded no índice, sem linha de contorno.
+
+### O que mudou
+
+- **`main.css`:** `.dashboard-tabs-row` em resultados com `border-radius` no topo; `border-bottom` removido (desktop e mobile).
+
+### Teste manual
+
+1. Card branco → cantos superiores arredondados no índice, sem linha sob abas/sacado.
+
+---
+
+## Entrada 109 — Sem sombra no card (2026-10-27)
+
+### Prompt (resumo)
+
+Não quero sombra também.
+
+### O que mudou
+
+- **`main.css`:** `.portal-results-column` com `box-shadow: none`.
+
+---
+
+## Entrada 110 — Cantos sem halo (2026-10-27)
+
+### Prompt (resumo)
+
+Linha/gap no canto arredondado não deve aparecer.
+
+### O que mudou
+
+- **`main.css`:** um só `border-radius` no card (`.portal-results-column`); índice sem radius duplicado; fundos sólidos `#fff` (header e sticky); removido `margin-top` do corpo; sem `backdrop-filter` no índice sticky.
+
+### Teste manual
+
+1. Mobile → canto superior do card liso, sem faixa entre barra e card.
+
+---
+
+## Entrada 111 — Reverter 110; só sem divisória (2026-10-27)
+
+### Prompt (resumo)
+
+Desfazer alterações da 110; manter apenas remoção da linha divisória do índice.
+
+### O que mudou
+
+- **`main.css`:** restaurado header translúcido, margem do corpo, radius no índice e blur no sticky; `border-bottom: none` mantido em `.dashboard-tabs-row`.
+
+---
+
+## Entrada 112 — Índice sem rounded + margin-top (2026-10-27)
+
+### Prompt (resumo)
+
+Tirar rounded do índice; `margin-top: 0.5rem` no índice.
+
+### O que mudou
+
+- **`main.css`:** `.dashboard-tabs-row` sem `border-radius`; `margin-top: 0.5rem` (mobile incluído).
+
+---
+
+## Entrada 113 — Globo de idioma maior na barra (2026-10-27)
+
+### Prompt (resumo)
+
+Aumentar tamanho da logo de idioma na barra superior.
+
+### O que mudou
+
+- **`main.css`:** ícone ~1.6rem e botão 2.75rem em resultados; header mobile com `padding-right` maior.
+
+---
+
+## Entrada 114 — Aba Notas ao trocar CSV (mobile) (2026-10-27)
+
+### Prompt (resumo)
+
+Ao trocar CSV no mobile, aba Notas sumia.
+
+### O que mudou
+
+- **`tab-notes.js`:** `garantirTableRootNoPainel()` recria `#table-root` se foi removido do DOM.
+- **`main.js`:** antes de `dashboardRoot.innerHTML = ""` na home, `guardarTableRootForaDoDashboard` + garantir nó.
+- **`dashboard-shell.js`:** `resetDashboardSlide(dashboardRoot)` limpa índice de aba persistido no novo lote.
+
+### Teste manual
+
+1. Mobile → Notas → Novo lote → outro CSV → aba Notas com tabela.
+
+---
+
+## Entrada 115 — Input sacado alinhado à esquerda (2026-10-27)
+
+### Prompt (resumo)
+
+Tirar centralização do conteúdo do input de pesquisar sacado.
+
+### O que mudou
+
+- **`main.css`:** removido `text-align: center` e padding simétrico no placeholder; input com `text-align: left` no mobile.
+
+---
+
+## Entrada 116 — Gaps dashboard 0.4rem (2026-10-27)
+
+### Prompt (resumo)
+
+Gaps de `.dashboard-panel` e `.dashboard-tabs-row` para `0.4rem`.
+
+### O que mudou
+
+- **`main.css`:** `gap: 0.4rem` em panel, tabs-row (desktop/mobile) e override da aba Notas.
+
+---
+
+## Entrada 117 — Sacado: sem chevron, X minimal (2026-10-27)
+
+### Prompt (resumo)
+
+Ocultar dropdown do sacado; X sem preenchimento; X só com filtro aplicado.
+
+### O que mudou
+
+- **`main.css`:** chevron oculto; clear transparente; padding do campo ajustado.
+- **`dashboard-sacado-combobox.js`:** `atualizarVisibilidadeLimparSacado` (só badges aplicados).
+
+---
+
+## Entrada 118 — Sacado: X oculto de fato (2026-10-27)
+
+### Prompt (resumo)
+
+O × continuava visível sem filtro porque o CSS anulava `hidden`.
+
+### O que mudou
+
+- **`main.css`:** `.sacado-combobox__clear[hidden] { display: none !important; }`.
+- **`dashboard-sacado-combobox.js`:** `sincronizarComboboxSacadoDashboard` após render.
+- **`dashboard-resumo.js`:** chama sincronização do combobox.
+
+---
+
+## Entrada 119 — Sacado: × centralizado (2026-10-27)
+
+### Prompt (resumo)
+
+Centralizar o span do × no botão limpar.
+
+### O que mudou
+
+- **`main.css`:** grid/`place-items` no clear e no span interno.
+
+---
+
+## Entrada 120 — Mobile: carrossel nas abas (2026-10-27)
+
+### Prompt (resumo)
+
+Abas como carrossel no mobile; underline acompanha o arraste.
+
+### O que mudou
+
+- **`dashboard-shell.js`:** carrossel horizontal também no mobile; touch no viewport; `syncIndicadorAbasDashboardProgress`.
+- **`main.css`:** track 300% no mobile; classes `--dragging` sem transição; remove empilhamento por `[hidden]`.
+
+---
+
+## Entrada 121 — Favicon logo.svg (2026-10-27)
+
+### Prompt (resumo)
+
+Favicon com `logo.svg`; símbolo branco em tema escuro do sistema.
+
+### O que mudou
+
+- **`index.html`:** `<link rel="icon">` + `color-scheme`.
+- **`logo.svg`:** `currentColor` com `@media (prefers-color-scheme: dark)`.
+
+---
+
+## Entrada 122 — Upload: zoom ao arrastar CSV (2026-10-27)
+
+### Prompt (resumo)
+
+Mesmo zoom do hover quando o usuário arrasta arquivo para a home.
+
+### O que mudou
+
+- **`upload-panel.js`:** drag/drop em `#portal-home`; classe `portal-upload-dropzone--dragover`.
+- **`main.css`:** `--dragover` com `scale(1.08)`.
+
+---
+
+## Entrada 123 — Índice das abas: fonte maior (2026-10-27)
+
+### Prompt (resumo)
+
+Aumentar tipografia dos botões do índice (desktop e mobile).
+
+### O que mudou
+
+- **`main.css`:** `.dashboard-tabs__btn` `0.9375rem`; mobile `0.8125rem`.
