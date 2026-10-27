@@ -96,6 +96,7 @@ def salvar_lote_postgres(
                 ),
             )
             if notas:
+                linhas_copy = [_nota_para_linha(lote_id, nota) for nota in notas]
                 with cur.copy(
                     """
                     COPY validacao_nota (
@@ -104,8 +105,8 @@ def salvar_lote_postgres(
                     ) FROM STDIN
                     """
                 ) as copy:
-                    for nota in notas:
-                        copy.write_row(_nota_para_linha(lote_id, nota))
+                    for linha in linhas_copy:
+                        copy.write_row(linha)
         conn.commit()
     return job_id
 
@@ -133,6 +134,33 @@ def _carregar_metadados_lote(
             "aprovadas": row["aprovadas"],
             "recusadas": row["recusadas"],
         },
+    }
+
+
+def carregar_lote_completo_postgres(database_url: str, job_id: str) -> dict[str, Any]:
+    """Carrega metadados + todas as notas em uma única consulta (sem COUNT extra)."""
+    lote_id = _job_id_para_uuid(job_id)
+
+    with db.conexao(database_url) as conn:
+        meta = _carregar_metadados_lote(conn, lote_id)
+        with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+            cur.execute(
+                """
+                SELECT linha, nu_documento, nome_sacado, data_vencimento,
+                       valor_nominal, status, motivo, valor_liquido
+                FROM validacao_nota
+                WHERE validacao_lote_id = %s
+                ORDER BY linha
+                """,
+                (lote_id,),
+            )
+            notas = [_linha_para_nota(r) for r in cur.fetchall()]
+
+    return {
+        "data_base": meta["data_base"],
+        "total_a_receber": meta["total_a_receber"],
+        "resumo": meta["resumo"],
+        "notas": notas,
     }
 
 

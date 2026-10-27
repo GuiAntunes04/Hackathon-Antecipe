@@ -350,10 +350,16 @@ def _aplicar_concentracao_maxima_sacado(
     codigo_list: list[str | None] = []
     motivo_list: list[str | None] = []
 
-    for row in df.iter_rows(named=True):
-        aprovada = bool(row["aprovada"])
-        cod = row["codigo_recusa"]
-        mot = row["motivo_recusa"]
+    aprovada_in = df["aprovada"].to_list()
+    codigo_in = df["codigo_recusa"].to_list()
+    motivo_in = df["motivo_recusa"].to_list()
+    doc_in = df["DOC_SACADO"].to_list()
+    valor_in = df["VALOR_NOMINAL"].to_list()
+
+    for i in range(df.height):
+        aprovada = bool(aprovada_in[i])
+        cod = codigo_in[i]
+        mot = motivo_in[i]
 
         if not aprovada:
             aprovada_list.append(False)
@@ -361,8 +367,8 @@ def _aplicar_concentracao_maxima_sacado(
             motivo_list.append(mot)
             continue
 
-        raiz = raiz_cnpj(str(row["DOC_SACADO"]))
-        valor = float(row["VALOR_NOMINAL"])
+        raiz = raiz_cnpj(str(doc_in[i]))
+        valor = float(valor_in[i])
 
         if not primeira_global_isenta:
             primeira_global_isenta = True
