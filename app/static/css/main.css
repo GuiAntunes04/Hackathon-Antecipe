@@ -2224,7 +2224,7 @@ body.has-resultado-bar .dashboard-tabs-row {
   body.has-resultado-bar .dashboard-tabs-row {
     position: sticky;
     top: var(--portal-dashboard-tabs-sticky-top, 0px);
-    z-index: 29;
+    z-index: 31;
     flex-direction: column;
     flex-wrap: nowrap;
     align-items: stretch;
@@ -2239,9 +2239,13 @@ body.has-resultado-bar .dashboard-tabs-row {
     padding-right: 0;
     padding-top: 0.2rem;
     padding-bottom: 0.35rem;
-    background: rgb(255 255 255 / 0.94);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    overflow-x: clip;
+    background: #fff;
+    box-shadow: 0 1px 0 rgb(226 232 240);
+  }
+
+  body.has-resultado-bar .dashboard-panel {
+    overflow-x: clip;
   }
 
   body.has-resultado-bar .dashboard-tabs-row .dashboard-tabs {
@@ -2502,9 +2506,27 @@ body.portal-screen-results .portal-lang-switch__icon {
 
 /* Mobile: mesmo carrossel horizontal (arraste no JS). */
 @media (max-width: 767.98px) {
+  body.has-resultado-bar .dashboard-carousel {
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+
+  body.has-resultado-bar .dashboard-carousel__viewport {
+    touch-action: pan-y pinch-zoom;
+    overflow-x: clip;
+    width: calc(100% + (var(--dashboard-panel-pad-x, 0.85rem) * 2));
+    max-width: none;
+    margin-left: calc(var(--dashboard-panel-pad-x, 0.85rem) * -1);
+    margin-right: calc(var(--dashboard-panel-pad-x, 0.85rem) * -1);
+    background: #fff;
+    isolation: isolate;
+    clip-path: inset(0);
+    transform: translateZ(0);
+  }
+
   .dashboard-carousel__viewport {
     touch-action: pan-y pinch-zoom;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   .dashboard-carousel__track.dashboard-views {
@@ -2517,19 +2539,45 @@ body.portal-screen-results .portal-lang-switch__icon {
   }
 
   .dashboard-carousel__track.dashboard-views > .dashboard-view {
-    flex: 0 0 33.333333%;
-    max-width: 33.333333%;
+    flex: 0 0 var(--dashboard-carousel-slide-w, 33.333333%);
+    width: var(--dashboard-carousel-slide-w, auto);
+    max-width: var(--dashboard-carousel-slide-w, 33.333333%);
+    min-width: 0;
     min-height: 0;
     box-sizing: border-box;
     padding: 0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    contain: paint;
+    background: #fff;
+    clip-path: inset(0);
+  }
+
+  body.has-resultado-bar .dashboard-view--notes {
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
   .dashboard-carousel__track.dashboard-views > .dashboard-carousel__slide {
-    flex: 0 0 33.333333%;
-    max-width: 33.333333%;
+    flex: 0 0 var(--dashboard-carousel-slide-w, 33.333333%);
+    max-width: var(--dashboard-carousel-slide-w, 33.333333%);
+    min-width: 0;
+  }
+
+  body.has-resultado-bar .dashboard-financeiro__hero,
+  body.has-resultado-bar .dashboard-recusadas__hero {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding-left: 1.45rem;
+    overflow: hidden;
+    clip-path: inset(0);
+  }
+
+  body.has-resultado-bar .dashboard-view--financial,
+  body.has-resultado-bar .dashboard-view--rejected {
+    overflow: hidden;
   }
 }
 

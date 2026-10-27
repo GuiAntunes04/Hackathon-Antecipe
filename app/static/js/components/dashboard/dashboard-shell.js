@@ -79,10 +79,47 @@ function syncIndicadorAbasDashboard(container) {
   syncIndicadorAbasDashboardProgress(container, idx);
 }
 
-/** @param {HTMLElement} track @param {number} alvo */
-function aplicarModoCarrossel(track, alvo) {
-  const offsetPct = (100 / DASHBOARD_TAB_COUNT) * alvo;
+function carrosselUsaOffsetPx() {
+  return typeof window !== "undefined" && window.matchMedia(MOBILE_CAROUSEL_MQ).matches;
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {HTMLElement} track
+ * @param {number} slideProgress
+ */
+function sincronizarLarguraTrilhoMobile(container, track) {
+  const viewport = container.querySelector(".dashboard-carousel__viewport");
+  if (!viewport) return;
+  if (!carrosselUsaOffsetPx()) {
+    track.style.width = "";
+    track.style.removeProperty("--dashboard-carousel-slide-w");
+    return;
+  }
+  const w = viewport.clientWidth || viewport.getBoundingClientRect().width;
+  if (w <= 0) return;
+  track.style.setProperty("--dashboard-carousel-slide-w", `${w}px`);
+  track.style.width = `${w * DASHBOARD_TAB_COUNT}px`;
+}
+
+function aplicarTransformCarrossel(container, track, slideProgress) {
+  const viewport = container.querySelector(".dashboard-carousel__viewport");
+  if (carrosselUsaOffsetPx() && viewport) {
+    sincronizarLarguraTrilhoMobile(container, track);
+    const w = viewport.clientWidth || viewport.getBoundingClientRect().width;
+    if (w > 0) {
+      track.style.transform = `translate3d(-${slideProgress * w}px, 0, 0)`;
+      return;
+    }
+  }
+  sincronizarLarguraTrilhoMobile(container, track);
+  const offsetPct = (100 / DASHBOARD_TAB_COUNT) * slideProgress;
   track.style.transform = `translate3d(-${offsetPct}%, 0, 0)`;
+}
+
+/** @param {HTMLElement} container @param {HTMLElement} track @param {number} alvo */
+function aplicarModoCarrossel(container, track, alvo) {
+  aplicarTransformCarrossel(container, track, alvo);
   track.querySelectorAll(".dashboard-view").forEach((panel, idx) => {
     panel.hidden = false;
     panel.removeAttribute("hidden");
@@ -114,8 +151,7 @@ function aplicarProgressoCarrossel(host, slideProgress, opts = {}) {
     track.style.transition = "none";
   }
 
-  const offsetPct = (100 / DASHBOARD_TAB_COUNT) * slideProgress;
-  track.style.transform = `translate3d(-${offsetPct}%, 0, 0)`;
+  aplicarTransformCarrossel(host, track, slideProgress);
   syncIndicadorAbasDashboardProgress(host, slideProgress);
 
   track.querySelectorAll(".dashboard-view").forEach((panel) => {
@@ -147,7 +183,7 @@ export function aplicarTabDashboard(container, tabIndex) {
   const indicator = container.querySelector(".dashboard-tabs__indicator");
   indicator?.classList.remove("dashboard-tabs__indicator--dragging");
   track.style.transition = "";
-  aplicarModoCarrossel(track, alvo);
+  aplicarModoCarrossel(container, track, alvo);
 
   document.body.classList.toggle("portal-results-tab-notes", alvo === 2);
 
@@ -299,6 +335,16 @@ export function vincularAbasDashboard(panelRoot) {
       });
       ro.observe(bar);
       panelRoot._dashboardTabsResizeObserver = ro;
+    }
+    const viewport = panelRoot.querySelector(".dashboard-carousel__viewport");
+    if (viewport && host) {
+      const roCarousel = new ResizeObserver(() => {
+        const idx = tabIndexByRoot.get(host) ?? dashboardTabPersistido;
+        const track = obterTrack(host);
+        if (track) aplicarTransformCarrossel(host, track, idx);
+      });
+      roCarousel.observe(viewport);
+      panelRoot._dashboardCarouselResizeObserver = roCarousel;
     }
   }
 

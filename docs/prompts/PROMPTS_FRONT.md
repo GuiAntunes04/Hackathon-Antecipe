@@ -2348,3 +2348,28 @@ Aumentar tipografia dos botões do índice (desktop e mobile).
 ### O que mudou
 
 - **`main.css`:** `.dashboard-tabs__btn` `0.9375rem`; mobile `0.8125rem`.
+
+---
+
+## Entrada 124 — Mobile: clip carrossel e faixas (2026-10-27)
+
+### Prompt (resumo)
+
+Evitar vazamento das faixas verde/vermelha entre abas e no índice sticky ao rolar.
+
+### O que mudou
+
+- **`main.css`:** viewport full-bleed, `overflow-x: clip`, sticky com fundo branco sólido; slides com `contain: paint` e largura via CSS var.
+- **`dashboard-shell.js`:** transform em pixels no mobile; `sincronizarLarguraTrilhoMobile`; `ResizeObserver` no viewport.
+
+---
+
+## Entrada 125 — Mobile: padding esquerdo nas faixas (2026-10-27)
+
+### Prompt (resumo)
+
+Aumentar levemente o padding esquerdo do texto nas faixas verde/vermelha no mobile.
+
+### O que mudou
+
+- **`main.css`:** `padding-left: 1.45rem` em `.dashboard-financeiro__hero` e `.dashboard-recusadas__hero` (mobile).
